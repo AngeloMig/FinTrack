@@ -198,7 +198,7 @@ textarea.input{resize:vertical;min-height:80px}
 
 .notif-wrap{position:relative}
 .notif-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
-.notif-panel{position:absolute;top:48px;right:0;width:min(360px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:12px;z-index:220;display:none}
+.notif-panel{position:absolute;top:48px;right:0;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:12px;z-index:220;display:none;overflow:hidden}
 .notif-panel.show{display:block}
 .notif-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .notif-item{padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px}
@@ -253,11 +253,61 @@ textarea.input{resize:vertical;min-height:80px}
 .mini-list{display:grid;gap:8px}
 .mini-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
 
+
 @media(max-width:380px){
-  .stats-grid{grid-template-columns:1fr 1fr}
+  .stats-grid{grid-template-columns:1fr}
   .input-row,.input-row-3{grid-template-columns:1fr}
   .stat-value{font-size:17px}
+  .app{padding:0 12px 96px}
+  .topbar{padding:12px 0 10px}
+  .topbar h1{font-size:16px}
+  .topbar-actions{gap:6px}
+  .icon-btn{width:34px;height:34px;font-size:15px}
+  .card{padding:16px}
+  .greeting{padding:18px}
+  .greeting .g-amount{font-size:28px}
+  .forecast-strip{grid-template-columns:1fr 1fr;gap:8px}
+  .tx-item{padding:10px 12px;gap:10px}
+  .tx-icon{width:36px;height:36px;font-size:16px}
+  .notif-panel{position:fixed;top:56px;left:12px;right:12px;width:auto;max-width:none;max-height:min(70vh,520px);overflow-y:auto}
+  .notif-head{gap:8px}
+  .notif-head .btn{width:auto}
+  .notif-item{padding:10px}
+  .bottom-nav{padding-left:8px;padding-right:8px}
+  .nav-item{font-size:9px}
+  .nav-icon{width:28px;height:24px;font-size:16px}
 }
+
+@media(max-width:320px){
+  .app{padding:0 10px 94px}
+  .topbar h1{font-size:15px}
+  .topbar-actions{gap:4px}
+  .icon-btn{width:32px;height:32px;font-size:14px}
+  .card{padding:14px;margin-bottom:10px}
+  .greeting{padding:16px}
+  .greeting .g-amount{font-size:24px}
+  .greeting .g-sub{font-size:12px;gap:8px}
+  .greeting .g-tag{font-size:10px;padding:4px 8px}
+  .forecast-strip{grid-template-columns:1fr;gap:8px}
+  .fs-box{padding:10px}
+  .payday{padding:12px;gap:10px}
+  .payday-days{font-size:24px;min-width:40px}
+  .tx-item{padding:9px 10px;gap:8px}
+  .tx-name{font-size:12px}
+  .tx-meta{font-size:10px}
+  .tx-amount{font-size:12px}
+  .card-header{margin-bottom:12px}
+  .card-title{font-size:13px}
+  .card-badge{font-size:10px;padding:3px 8px}
+  .notif-panel{top:52px;left:10px;right:10px;padding:10px;border-radius:14px}
+  .notif-head{align-items:flex-start}
+  .notif-head > div{font-size:13px!important}
+  .notif-head .btn{padding:7px 10px;font-size:11px}
+  .notif-item{padding:9px 10px}
+  .show-more-btn{padding:10px;font-size:12px}
+  .modal{padding:18px}
+}
+
 </style>
 </head>
 <body>
@@ -760,7 +810,14 @@ function getForecastData(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft)
 function getSmartInsights(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft,forecast){const insights=[];const nonSavings=ac.filter(c=>c.group!=='savings');const overBudget=nonSavings.map(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=budget>0?(spent/budget*100):0;return{...c,spent,budget,pct}}).filter(c=>c.budget>0&&c.spent>c.budget).sort((a,b)=>(b.spent-b.budget)-(a.spent-a.budget));if(overBudget.length){const c=overBudget[0];insights.push({type:'warning',icon:'⚠️',title:`${c.name} is over budget`,detail:`Over by ${fmtShort(c.spent-c.budget)} (${Math.round(c.pct)}% used).`})}const topSpend=Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];if(topSpend&&topSpend[1]>0)insights.push({type:'info',icon:'📌',title:`Top spending: ${topSpend[0]}`,detail:`${fmtShort(topSpend[1])} this month.`});const savingsBudget=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+Number(budgets[c.name]||0),0);const savingsRate=totalIncome>0?(savingsBudget/totalIncome*100):0;if(savingsRate>=15)insights.push({type:'good',icon:'✅',title:'Savings plan looks healthy',detail:`About ${Math.round(savingsRate)}% of income allocated to savings.`});else insights.push({type:'tip',icon:'💡',title:'Savings allocation is low',detail:'Try moving a little from wants into savings.'});if(forecast&&forecast.safeDailySpend>0)insights.push({type:'tip',icon:'💡',title:'Safe daily spend target',detail:`Aim for around ${fmtShort(forecast.safeDailySpend)} per day.`});const seen=new Set();return insights.filter(x=>{const key=x.title+'|'+x.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5)}
 
 /* Notifications */
-function toggleNotifications(){const panel=document.getElementById('notif-panel');if(!panel)return;panel.classList.toggle('show')}
+function toggleNotifications(){
+  const panel=document.getElementById('notif-panel');
+  if(!panel)return;
+  panel.classList.toggle('show');
+  if(panel.classList.contains('show')){
+    panel.scrollTop=0;
+  }
+}
 function markNotificationsSeen(){notificationsSeenAt=Date.now();saveData();const badge=document.getElementById('notif-badge');if(badge)badge.style.display='none'}
 function getNotificationItems(ac,catTotals,forecast){const items=[];const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;(recurring||[]).forEach(r=>{const paid=r.lastPaid===monthKey;const daysLeft=r.day-now.getDate();if(r.type==='bill'&&!paid&&daysLeft<0)items.push({type:'danger',icon:'🚨',title:`${r.name} is overdue`,detail:`Due on day ${r.day}.`,ts:5});else if(r.type==='bill'&&!paid&&daysLeft===0)items.push({type:'warning',icon:'🧾',title:`${r.name} is due today`,detail:`Amount ${fmtShort(r.amount)}.`,ts:4});else if(r.type==='bill'&&!paid&&daysLeft<=2&&daysLeft>=1)items.push({type:'info',icon:'📅',title:`${r.name} due soon`,detail:`Due in ${daysLeft} day${daysLeft!==1?'s':''}.`,ts:3})});if(forecast&&forecast.projectedBalance<0)items.push({type:'danger',icon:'📉',title:'Negative month-end forecast',detail:`Projected ${fmtShort(forecast.projectedBalance)} at month end.`,ts:5});ac.filter(c=>c.group!=='savings').forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;if(!budget)return;if(spent>budget)items.push({type:'warning',icon:'⚠️',title:`${c.name} over budget`,detail:`Over by ${fmtShort(spent-budget)}.`,ts:4})});const unique=[],seen=new Set();items.sort((a,b)=>b.ts-a.ts);for(const item of items){const key=item.title+'|'+item.detail;if(!seen.has(key)){seen.add(key);unique.push(item)}}return unique.slice(0,10)}
 
