@@ -722,6 +722,22 @@ textarea.input{resize:vertical;min-height:80px}
   <div class="tour-toast-body">Your dashboard updates automatically after every entry. Keep going to unlock better insights.</div>
 </div>
 
+
+<div class="modal-overlay" id="modal-strategy-advanced" onclick="if(event.target===this)closeModal(this.id)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Advanced Distribution</h3>
+    <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:14px">
+      These weights control how remaining money is divided inside each group after fixed bills are covered.
+    </div>
+    <div id="strategy-advanced-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-strategy-advanced')">Close</button>
+      <button class="btn btn-primary" onclick="saveStrategyAdvanced()">Save Weights</button>
+    </div>
+  </div>
+</div>
+
 <!-- Onboarding -->
 <div class="onboard-overlay" id="onboard-overlay">
   <div class="onboard-card">
@@ -1446,6 +1462,49 @@ function autoDistributeByStrategy(){
   render();
 }
 
+
+function openStrategyAdvanced(){
+  renderStrategyAdvanced();
+  openModal('modal-strategy-advanced');
+}
+function renderStrategyAdvanced(){
+  const box=document.getElementById('strategy-advanced-content');
+  if(!box) return;
+  const needsNames=allCats().filter(c=>c.group==='needs' && c.type!=='fixed').map(c=>c.name);
+  const wantsNames=allCats().filter(c=>c.group==='wants' && c.type!=='fixed').map(c=>c.name);
+  const savingsNames=allCats().filter(c=>c.group==='savings' && c.type!=='fixed').map(c=>c.name);
+
+  function section(title, group, names, color){
+    return `<div class="card" style="padding:14px;margin:0 0 12px 0">
+      <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:${color}">${title}</div>
+      <div style="display:grid;gap:8px">
+        ${names.map(name=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:8px;align-items:center">
+          <div style="font-size:12px">${esc(name)}</div>
+          <input class="input" type="number" min="0" value="${Number(budgetStrategy.weights[group][name]||0)}" data-group="${group}" data-name="${esc(name)}">
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  box.innerHTML = `
+    ${section('Needs weights','needs',needsNames,'var(--blue)')}
+    ${section('Wants weights','wants',wantsNames,'var(--amber)')}
+    ${section('Savings weights','savings',savingsNames,'var(--green)')}
+  `;
+}
+function saveStrategyAdvanced(){
+  const box=document.getElementById('strategy-advanced-content');
+  if(!box) return;
+  box.querySelectorAll('input[data-group][data-name]').forEach(inp=>{
+    const group=inp.getAttribute('data-group');
+    const name=inp.getAttribute('data-name');
+    budgetStrategy.weights[group][name]=Math.max(0, parseInt(inp.value)||0);
+  });
+  saveData();
+  closeModal('modal-strategy-advanced');
+  render();
+}
+
 /* ============ MAIN RENDER ============ */
 function render(){
   const helpBtn=document.getElementById('help-toggle-btn');
@@ -1475,17 +1534,18 @@ function render(){
   const strategyMeta=getStrategyMeta();
   const bsEl=document.getElementById('budget-strategy-card');
   if(bsEl){
+    const totalPct=budgetStrategy.needsPct+budgetStrategy.wantsPct+budgetStrategy.savingsPct;
     const presetLabel=budgetStrategy.preset==='balanced'?'50/30/20':budgetStrategy.preset==='aggressive'?'40/20/40':budgetStrategy.preset==='survival'?'70/20/10':'Custom';
-    const needsNames=allCats().filter(c=>c.group==='needs' && c.type!=='fixed').map(c=>c.name);
-    const wantsNames=allCats().filter(c=>c.group==='wants' && c.type!=='fixed').map(c=>c.name);
-    const savingsNames=allCats().filter(c=>c.group==='savings' && c.type!=='fixed').map(c=>c.name);
     bsEl.innerHTML=`
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Choose how salary should be distributed before category budgets are auto-calculated.</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">
+        This feature helps the app recommend and auto-build category budgets from your salary.
+      </div>
 
       <div class="quick-actions" style="margin-bottom:12px">
         <button class="quick-chip" style="${budgetStrategy.preset==='balanced'?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':''}" onclick="applyBudgetPreset('balanced')">Balanced 50/30/20</button>
         <button class="quick-chip" style="${budgetStrategy.preset==='aggressive'?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':''}" onclick="applyBudgetPreset('aggressive')">Aggressive 40/20/40</button>
         <button class="quick-chip" style="${budgetStrategy.preset==='survival'?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':''}" onclick="applyBudgetPreset('survival')">Survival 70/20/10</button>
+        <button class="quick-chip" style="${budgetStrategy.preset==='custom'?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':''}">Custom</button>
       </div>
 
       <div class="card" style="padding:14px;margin:0 0 12px 0">
@@ -1493,76 +1553,47 @@ function render(){
           <div>
             <div class="progress-header"><span class="progress-label">Needs</span><span class="progress-value">${budgetStrategy.needsPct}% · ${fmtShort(strategyMeta.needsBudget)}</span></div>
             <input class="input" type="range" min="0" max="100" value="${budgetStrategy.needsPct}" oninput="setBudgetStrategyPct('needs',this.value)">
-            <div class="help-inline">Bills and essentials. Fixed needs already use ${fmtShort(strategyMeta.fixedNeeds)}.</div>
           </div>
           <div>
             <div class="progress-header"><span class="progress-label">Wants</span><span class="progress-value">${budgetStrategy.wantsPct}% · ${fmtShort(strategyMeta.wantsBudget)}</span></div>
             <input class="input" type="range" min="0" max="100" value="${budgetStrategy.wantsPct}" oninput="setBudgetStrategyPct('wants',this.value)">
-            <div class="help-inline">Lifestyle spending. Fixed wants already use ${fmtShort(strategyMeta.fixedWants)}.</div>
           </div>
           <div>
             <div class="progress-header"><span class="progress-label">Savings</span><span class="progress-value">${budgetStrategy.savingsPct}% · ${fmtShort(strategyMeta.savingsBudget)}</span></div>
             <input class="input" type="range" min="0" max="100" value="${budgetStrategy.savingsPct}" oninput="setBudgetStrategyPct('savings',this.value)">
-            <div class="help-inline">Future money. Fixed savings already use ${fmtShort(strategyMeta.fixedSavings)}.</div>
           </div>
         </div>
-        <div style="font-size:11px;color:${budgetStrategy.needsPct+budgetStrategy.wantsPct+budgetStrategy.savingsPct===100?'var(--green)':'var(--red)'};margin-top:8px;font-weight:700">
-          Total: ${budgetStrategy.needsPct+budgetStrategy.wantsPct+budgetStrategy.savingsPct}%
+        <div style="font-size:11px;color:${totalPct===100?'var(--green)':'var(--red)'};margin-top:8px;font-weight:700">
+          Total: ${totalPct}% · Preset: ${presetLabel}
         </div>
-        ${strategyMeta.fixedOverflow?`<div style="margin-top:8px;font-size:11px;color:var(--red);font-weight:700">⚠ One of your groups has fixed bills higher than its current allocation.</div>`:''}
-      </div>
-
-      <div class="card" style="padding:14px;margin:0 0 12px 0">
-        <div class="card-header" style="padding:0;margin-bottom:8px">
-          <span class="card-title">Distribution Weights</span>
-          <span class="card-badge">${presetLabel}</span>
-        </div>
-        <div class="help-inline" style="margin-bottom:10px">These weights decide how remaining salary is split inside each group after fixed bills are covered.</div>
-
-        <div style="display:grid;gap:10px">
-          <div>
-            <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--blue)">Needs weights</div>
-            <div style="display:grid;gap:6px">${needsNames.map(name=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px;align-items:center"><div style="font-size:12px">${esc(name)}</div><input class="input" type="number" min="0" value="${Number(budgetStrategy.weights.needs[name]||0)}" oninput="setBudgetWeight('needs','${name.replace(/'/g,"\'")}',this.value)" onchange="setBudgetWeight('needs','${name.replace(/'/g,"\'")}',this.value)"></div>`).join('')}</div>
-          </div>
-
-          <div>
-            <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--amber)">Wants weights</div>
-            <div style="display:grid;gap:6px">${wantsNames.map(name=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px;align-items:center"><div style="font-size:12px">${esc(name)}</div><input class="input" type="number" min="0" value="${Number(budgetStrategy.weights.wants[name]||0)}" oninput="setBudgetWeight('wants','${name.replace(/'/g,"\'")}',this.value)" onchange="setBudgetWeight('wants','${name.replace(/'/g,"\'")}',this.value)"></div>`).join('')}</div>
-          </div>
-
-          <div>
-            <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--green)">Savings weights</div>
-            <div style="display:grid;gap:6px">${savingsNames.map(name=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px;align-items:center"><div style="font-size:12px">${esc(name)}</div><input class="input" type="number" min="0" value="${Number(budgetStrategy.weights.savings[name]||0)}" oninput="setBudgetWeight('savings','${name.replace(/'/g,"\'")}',this.value)" onchange="setBudgetWeight('savings','${name.replace(/'/g,"\'")}',this.value)"></div>`).join('')}</div>
-          </div>
-        </div>
+        ${strategyMeta.fixedOverflow?`<div style="margin-top:8px;font-size:11px;color:var(--red);font-weight:700">⚠ Fixed bills are higher than one of your current group allocations.</div>`:''}
       </div>
 
       <div class="stats-grid" style="margin-bottom:12px">
         <div class="stat-card">
-          <div class="stat-label">Needs left to distribute</div>
-          <div class="stat-value" style="font-size:18px;color:var(--blue)">${fmtShort(strategyMeta.needsRemaining)}</div>
+          <div class="stat-label">Fixed needs used</div>
+          <div class="stat-value" style="font-size:18px;color:var(--blue)">${fmtShort(strategyMeta.fixedNeeds)}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Wants left to distribute</div>
-          <div class="stat-value" style="font-size:18px;color:var(--amber)">${fmtShort(strategyMeta.wantsRemaining)}</div>
+          <div class="stat-label">Fixed wants used</div>
+          <div class="stat-value" style="font-size:18px;color:var(--amber)">${fmtShort(strategyMeta.fixedWants)}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Savings left to distribute</div>
-          <div class="stat-value" style="font-size:18px;color:var(--green)">${fmtShort(strategyMeta.savingsRemaining)}</div>
+          <div class="stat-label">Fixed savings used</div>
+          <div class="stat-value" style="font-size:18px;color:var(--green)">${fmtShort(strategyMeta.fixedSavings)}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Strategy mode</div>
+          <div class="stat-label">Mode</div>
           <div class="stat-value" style="font-size:18px">${presetLabel}</div>
         </div>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" onclick="autoDistributeByStrategy()">Auto Balance Budgets</button>
-        <button class="btn btn-ghost btn-sm" onclick="render()">Refresh Preview</button>
+        <button class="btn btn-ghost btn-sm" onclick="openStrategyAdvanced()">Advanced distribution</button>
       </div>
     `;
   }
-
 
   // Greeting — now includes inline stats
   const hour=now.getHours();const greet=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
