@@ -254,6 +254,22 @@ textarea.input{resize:vertical;min-height:80px}
 .mini-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
 
 
+@media(max-width:480px){
+  .notif-panel{
+    position:fixed;
+    top:72px;
+    left:12px;
+    right:12px;
+    width:auto;
+    max-width:none;
+    max-height:min(70vh,520px);
+    overflow-y:auto;
+    z-index:300;
+  }
+  .notif-head{gap:8px}
+  .notif-head .btn{width:auto}
+}
+
 @media(max-width:380px){
   .stats-grid{grid-template-columns:1fr}
   .input-row,.input-row-3{grid-template-columns:1fr}
@@ -269,9 +285,6 @@ textarea.input{resize:vertical;min-height:80px}
   .forecast-strip{grid-template-columns:1fr 1fr;gap:8px}
   .tx-item{padding:10px 12px;gap:10px}
   .tx-icon{width:36px;height:36px;font-size:16px}
-  .notif-panel{position:fixed;top:56px;left:12px;right:12px;width:auto;max-width:none;max-height:min(70vh,520px);overflow-y:auto}
-  .notif-head{gap:8px}
-  .notif-head .btn{width:auto}
   .notif-item{padding:10px}
   .bottom-nav{padding-left:8px;padding-right:8px}
   .nav-item{font-size:9px}
