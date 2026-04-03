@@ -50,6 +50,28 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .greeting .g-amount{font-size:32px;font-weight:800;margin:4px 0;letter-spacing:-1px}
 .greeting .g-sub{font-size:13px;opacity:.75;display:flex;gap:16px;flex-wrap:wrap}
 .greeting .g-tag{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-top:8px}
+.greeting-carousel{position:relative}
+.greeting-slides{position:relative;min-height:166px}
+.greeting-slide{display:none;animation:fadeIn .25s ease}
+.greeting-slide.active{display:block}
+.greeting-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.greeting-kicker{font-size:12px;opacity:.8;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.greeting-side-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);font-size:11px;font-weight:700;white-space:nowrap}
+.greeting-value{font-size:34px;font-weight:800;line-height:1.02;letter-spacing:-1.2px;margin-top:10px}
+.greeting-label{font-size:13px;opacity:.88;font-weight:600;margin-top:6px}
+.greeting-subline{font-size:13px;opacity:.74;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.greeting-chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.greeting-progress{margin-top:14px}
+.greeting-progress-track{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+.greeting-progress-fill{height:100%;border-radius:999px;background:rgba(255,255,255,.55)}
+.greeting-progress-meta{display:flex;justify-content:space-between;gap:10px;font-size:11px;opacity:.78;margin-top:6px}
+.greeting-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px}
+.greeting-dots{display:flex;justify-content:center;gap:6px;flex:0 0 auto}
+.greeting-dot{width:7px;height:7px;border:none;border-radius:999px;background:rgba(255,255,255,.32);cursor:pointer;transition:var(--transition)}
+.greeting-dot.active{width:18px;background:#fff}
+.greeting-carousel{touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.greeting-slides{cursor:grab}
+.greeting-slides.dragging{cursor:grabbing}
 
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;transition:var(--transition)}
@@ -810,6 +832,7 @@ textarea.input{resize:vertical;min-height:80px}
 
 /* ── Small screen refinements ── */
 @media (max-width: 380px) {
+  .greeting-nav{margin-top:12px}
   .safe-spend-badge-wrap{padding:7px 9px;gap:6px}
   .safe-spend-label-inline{font-size:9px}
   .safe-spend-status{padding:5px 9px;font-size:10px}
@@ -1383,6 +1406,8 @@ let paySchedule={mode:'twice',days:[5,20]};
 let onboardStep=0;
 let alertSettings={budgetThreshold:80,overspendForecast:true,recurringDueSoon:true,spikeAlerts:true,lowBalanceAlerts:true};
 let showMoreExpanded=false;
+let greetingCardIndex=0;
+let greetingAutoSlideTimer=null;
 let debtPayoffSettings={method:'snowball'};
 let debtPayments=[],nextDebtPaymentId=1,activeDebtPaymentDebtId=null;
 let goalContributions=[],nextGoalContributionId=1,activeGoalContributionGoalId=null;
@@ -1476,6 +1501,29 @@ applyDark();
 
 function openModal(id){document.getElementById(id).classList.add('show')}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
+
+function restartGreetingAutoSlide(){
+  if(greetingAutoSlideTimer) clearInterval(greetingAutoSlideTimer);
+  greetingAutoSlideTimer=setInterval(()=>{
+    greetingCardIndex=(greetingCardIndex+1)%3;
+    render();
+  },6000);
+}
+function setGreetingCard(index){
+  greetingCardIndex=((index%3)+3)%3;
+  render();
+  restartGreetingAutoSlide();
+}
+function nextGreetingCard(){
+  greetingCardIndex=(greetingCardIndex+1)%3;
+  render();
+  restartGreetingAutoSlide();
+}
+function prevGreetingCard(){
+  greetingCardIndex=(greetingCardIndex+2)%3;
+  render();
+  restartGreetingAutoSlide();
+}
 
 let actionToastTimer=null;
 function showActionToast(title,body,icon='✓'){const toast=document.getElementById('action-toast');if(!toast)return;document.getElementById('action-toast-title').textContent=title||'Saved';document.getElementById('action-toast-body').textContent=body||'';document.getElementById('action-toast-icon').textContent=icon||'✓';toast.classList.remove('show');if(actionToastTimer)clearTimeout(actionToastTimer);requestAnimationFrame(()=>toast.classList.add('show'));actionToastTimer=setTimeout(()=>toast.classList.remove('show'),2600)}
@@ -1643,8 +1691,8 @@ function renderAnalyticsInsights(){
   const monthEntries=getMonthEntries();
   const catTotals=getMonthCategoryTotals();
   const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
-  const daysLeft=getDaysLeftInShownMonth();
-  const safeDaily=Math.floor(Math.max((getMonthIncomeTotal()||salary||0)-monthSpent,0)/daysLeft);
+  const safe = getSafeSpendRealData();
+  const safeDaily = safe.daily;
   const insights=[];
   if(monthEntries.length===0){
     insights.push({icon:'📝',title:'No spending logged yet',body:'Add your first expense this month to unlock more useful breakdowns and patterns.'});
@@ -1943,7 +1991,7 @@ function getProjectedRecurringImpact(){const monthKey=currentMonthKey();const to
 function getForecastData(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft){const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();const dayOfMonth=Math.max(now.getDate(),1);const safeDays=Math.max(dayOfMonth,7);function getProjectedCategoryValue(cat,spent,budget){spent=Number(spent||0);budget=Number(budget||0);if(cat.type==='fixed'){const recurringMatch=recurring.find(r=>r.type==='bill'&&r.category===cat.name&&r.lastPaid!==currentMonthKey());return recurringMatch?Math.max(spent,Number(recurringMatch.amount||0)):spent}if(cat.type==='variable'){if(spent<=0)return 0;const rawTrend=(spent/safeDays)*daysInMonth;let projected=dayOfMonth<7?Math.max(spent,spent+(rawTrend-spent)*0.35):Math.max(spent,rawTrend);if(dayOfMonth<7&&budget>0)projected=Math.min(projected,Math.max(spent,budget*1.5));return projected}return spent}const avgDailySpend=monthTotal/safeDays;const fixedSpent=ac.filter(c=>c.type==='fixed').reduce((sum,c)=>sum+getProjectedCategoryValue(c,catTotals[c.name]||0,budgets[c.name]||0),0);const variableProjectedSpend=ac.filter(c=>c.type==='variable').reduce((sum,c)=>sum+getProjectedCategoryValue(c,catTotals[c.name]||0,budgets[c.name]||0),0);const recurringImpact=getProjectedRecurringImpact();const projectedSpend=Math.max(fixedSpent+variableProjectedSpend+recurringImpact.expenses,monthTotal);const projectedIncome=totalIncome+recurringImpact.income;const projectedBalance=projectedIncome-projectedSpend;const safeDailySpend=daysLeft>0?Math.max((remaining-recurringImpact.expenses+recurringImpact.income)/daysLeft,0):0;let status='On Track',color='var(--green)',subtitle='Looking healthy.';if(projectedBalance<0){status='Overspending';color='var(--red)';subtitle='May finish the month negative.'}else if(projectedBalance<projectedIncome*0.1){status='Tight';color='var(--amber)';subtitle='Watch daily spending.'}else if(projectedBalance>projectedIncome*0.2){status='Strong';color='var(--blue)';subtitle='Strong month-end cushion.'}return{avgDailySpend,projectedSpend,projectedIncome,projectedBalance,safeDailySpend,recurringImpact,status,color,subtitle}}
 
 /* Smart insights */
-function getSmartInsights(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft,forecast){const insights=[];const nonSavings=ac.filter(c=>c.group!=='savings');const overBudget=nonSavings.map(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=budget>0?(spent/budget*100):0;return{...c,spent,budget,pct}}).filter(c=>c.budget>0&&c.spent>c.budget).sort((a,b)=>(b.spent-b.budget)-(a.spent-a.budget));if(overBudget.length){const c=overBudget[0];insights.push({type:'warning',icon:'⚠️',title:`${c.name} is over budget`,detail:`Over by ${fmtShort(c.spent-c.budget)} (${Math.round(c.pct)}% used).`})}const topSpend=Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];if(topSpend&&topSpend[1]>0)insights.push({type:'info',icon:'📌',title:`Top spending: ${topSpend[0]}`,detail:`${fmtShort(topSpend[1])} this month.`});const savingsBudget=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+Number(budgets[c.name]||0),0);const savingsRate=totalIncome>0?(savingsBudget/totalIncome*100):0;if(savingsRate>=15)insights.push({type:'good',icon:'✅',title:'Savings plan looks healthy',detail:`About ${Math.round(savingsRate)}% of income allocated to savings.`});else insights.push({type:'tip',icon:'💡',title:'Savings allocation is low',detail:'Try moving a little from wants into savings.'});if(forecast&&forecast.safeDailySpend>0)insights.push({type:'tip',icon:'💡',title:'Safe daily spend target',detail:`Aim for around ${fmtShort(forecast.safeDailySpend)} per day.`});const seen=new Set();return insights.filter(x=>{const key=x.title+'|'+x.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5)}
+function getSmartInsights(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft,forecast){const insights=[];const nonSavings=ac.filter(c=>c.group!=='savings');const overBudget=nonSavings.map(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=budget>0?(spent/budget*100):0;return{...c,spent,budget,pct}}).filter(c=>c.budget>0&&c.spent>c.budget).sort((a,b)=>(b.spent-b.budget)-(a.spent-a.budget));if(overBudget.length){const c=overBudget[0];insights.push({type:'warning',icon:'⚠️',title:`${c.name} is over budget`,detail:`Over by ${fmtShort(c.spent-c.budget)} (${Math.round(c.pct)}% used).`})}const topSpend=Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];if(topSpend&&topSpend[1]>0)insights.push({type:'info',icon:'📌',title:`Top spending: ${topSpend[0]}`,detail:`${fmtShort(topSpend[1])} this month.`});const savingsBudget=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+Number(budgets[c.name]||0),0);const savingsRate=totalIncome>0?(savingsBudget/totalIncome*100):0;if(savingsRate>=15)insights.push({type:'good',icon:'✅',title:'Savings plan looks healthy',detail:`About ${Math.round(savingsRate)}% of income allocated to savings.`});else insights.push({type:'tip',icon:'💡',title:'Savings allocation is low',detail:'Try moving a little from wants into savings.'});const safeSpendNow=getSafeSpendRealData();if(safeSpendNow&&safeSpendNow.daily>0)insights.push({type:'tip',icon:'💡',title:'Safe daily spend target',detail:`Aim for around ${fmtShort(safeSpendNow.daily)} per day.`});const seen=new Set();return insights.filter(x=>{const key=x.title+'|'+x.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5)}
 
 /* Notifications */
 function toggleNotifications(){
@@ -2597,7 +2645,7 @@ function render(){
   const remaining=totalIncome-monthTotal;const savRate=totalIncome>0?Math.round(savsB/totalIncome*100):0;
   const catTotals={};ac.forEach(c=>catTotals[c.name]=0);me.filter(e=>!e.isDebtPayment&&!e.isGoalContribution).forEach(e=>{catTotals[e.category]=(catTotals[e.category]||0)+e.amount});
   const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const daysLeft=daysInMonth-now.getDate();
+  const daysLeft=Math.max(daysInMonth-now.getDate()+1,1);
   const dailyLeft=daysLeft>0?remaining/daysLeft:0;
 
 
@@ -2666,15 +2714,63 @@ function render(){
     `;
   }
 
-  // Greeting — now includes inline stats
+  // Greeting carousel
   const hour=now.getHours();const greet=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
-  const payChip=(function(){
-    try{
-      const payInfo=getPaydayInfo();
-      return payInfo && Number.isFinite(payInfo.daysAway) ? `<div class="g-tag">💸 Payday in ${payInfo.daysAway}d</div>` : '';
-    }catch(e){ return ''; }
-  })();
-  document.getElementById('greeting-card').innerHTML=`<div class="g-label">${greet}</div><div class="g-amount">${fmt(remaining)}</div><div class="g-sub"><span>left of ${fmtShort(totalIncome)}</span><span>· ${fmtShort(monthTotal)} spent</span></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${savRate>=20?`<div class="g-tag">🔥 ${savRate}% savings</div>`:''}<div class="g-tag">📅 ${daysLeft}d left</div>${payChip}</div>`;
+  let payInfo=null;
+  try{ payInfo=getPaydayInfo(); }catch(e){ payInfo=null; }
+  const payChip=payInfo && Number.isFinite(payInfo.daysUntil) ? `<div class="g-tag">💸 Payday in ${payInfo.daysUntil}d</div>` : '';
+  const spentPct=Math.max(0,Math.min(totalIncome>0?(monthTotal/totalIncome)*100:0,100));
+  const safeNow=getSafeSpendRealData();
+  const safeDaily=safeNow&&safeNow.daily?safeNow.daily:0;
+  const savingsTone=savRate>=30?'Strong':savRate>=20?'Healthy':'Building';
+  const slide0 = `
+    <div class="greeting-slide ${greetingCardIndex===0?'active':''}">
+      <div class="greeting-top">
+        <div class="greeting-kicker">${greet}</div>
+        <div class="greeting-side-pill">✨ Monthly overview</div>
+      </div>
+      <div class="greeting-value">${fmt(remaining)}</div>
+      <div class="greeting-label">Available this month</div>
+      <div class="greeting-subline"><span>${fmtShort(monthTotal)} spent</span><span>• ${daysLeft} days left</span></div>
+      <div class="greeting-chip-row">${savRate>=20?`<div class="g-tag">🔥 ${savRate}% savings</div>`:''}<div class="g-tag">📅 ${daysLeft}d left</div>${payChip}</div>
+      <div class="greeting-progress">
+        <div class="greeting-progress-track"><div class="greeting-progress-fill" style="width:${spentPct}%"></div></div>
+        <div class="greeting-progress-meta"><span>Spent ${fmtShort(monthTotal)} of ${fmtShort(totalIncome)}</span><span>${Math.round(spentPct)}% used</span></div>
+      </div>
+    </div>`;
+  const slide1 = `
+    <div class="greeting-slide ${greetingCardIndex===1?'active':''}">
+      <div class="greeting-top">
+        <div class="greeting-kicker">${safeNow.status==='good'?'You are on track':safeNow.status==='warn'?'Stay a little tighter':'Watch your pace'}</div>
+        <div class="greeting-side-pill">🧠 Daily guidance</div>
+      </div>
+      <div class="greeting-value">${fmt(safeDaily)}</div>
+      <div class="greeting-label">Safe to spend today</div>
+      <div class="greeting-subline"><span>Bills and buffer already accounted for</span></div>
+      <div class="greeting-chip-row"><div class="g-tag">🧾 Bills ${fmtShort(safeNow.bills||0)}</div><div class="g-tag">🛡️ Buffer ${fmtShort(safeNow.buffer||0)}</div>${payChip}</div>
+    </div>`;
+  const slide2 = `
+    <div class="greeting-slide ${greetingCardIndex===2?'active':''}">
+      <div class="greeting-top">
+        <div class="greeting-kicker">Looking good this month</div>
+        <div class="greeting-side-pill">🌟 Momentum</div>
+      </div>
+      <div class="greeting-value">${savRate}%</div>
+      <div class="greeting-label">Income going to savings</div>
+      <div class="greeting-subline"><span>${savingsTone} savings pace</span><span>• ${daysLeft} days left</span></div>
+      <div class="greeting-chip-row"><div class="g-tag">✅ ${safeNow.status==='good'?'On track':safeNow.status==='warn'?'Tight but okay':'Needs attention'}</div><div class="g-tag">💸 ${fmtShort(monthTotal)} spent</div>${payChip}</div>
+    </div>`;
+  document.getElementById('greeting-card').innerHTML=`
+    <div class="greeting-carousel">
+      <div class="greeting-slides">${slide0}${slide1}${slide2}</div>
+      <div class="greeting-nav">
+        <div class="greeting-dots">
+          <button class="greeting-dot ${greetingCardIndex===0?'active':''}" onclick="setGreetingCard(0)" aria-label="Greeting card 1"></button>
+          <button class="greeting-dot ${greetingCardIndex===1?'active':''}" onclick="setGreetingCard(1)" aria-label="Greeting card 2"></button>
+          <button class="greeting-dot ${greetingCardIndex===2?'active':''}" onclick="setGreetingCard(2)" aria-label="Greeting card 3"></button>
+        </div>
+      </div>
+    </div>`;
 
   // Compact forecast + payday
   const forecast=getForecastData(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft);
@@ -2884,6 +2980,36 @@ document.addEventListener('click',function(e){const wrap=e.target.closest('.noti
 window.addEventListener('DOMContentLoaded',()=>{
   try{ renderCashflowNotification(); }catch(e){}
   try{ renderSafeSpendCard(); }catch(e){}
+});
+
+
+restartGreetingAutoSlide();
+
+document.addEventListener('pointerdown',function(e){
+  const slides=e.target.closest('.greeting-slides');
+  if(!slides) return;
+  slides.dataset.startX=String(e.clientX);
+  slides.dataset.dragging='1';
+  slides.classList.add('dragging');
+});
+document.addEventListener('pointerup',function(e){
+  const slides=document.querySelector('.greeting-slides.dragging');
+  if(!slides) return;
+  const startX=Number(slides.dataset.startX||0);
+  const diff=e.clientX-startX;
+  slides.classList.remove('dragging');
+  delete slides.dataset.dragging;
+  delete slides.dataset.startX;
+  if(Math.abs(diff)<40) return;
+  if(diff<0) nextGreetingCard();
+  else prevGreetingCard();
+});
+document.addEventListener('pointercancel',function(){
+  const slides=document.querySelector('.greeting-slides.dragging');
+  if(!slides) return;
+  slides.classList.remove('dragging');
+  delete slides.dataset.dragging;
+  delete slides.dataset.startX;
 });
 
 </script>
