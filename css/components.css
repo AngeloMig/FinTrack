@@ -370,7 +370,7 @@
 .money-flow-node-group.is-selected .money-flow-node-accent { opacity: 1; }
 .money-flow-detail-tray { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 12px; padding: 14px 16px; border-radius: 22px; border: 1px solid var(--money-flow-control-border); background: var(--money-flow-control-bg); color: var(--money-flow-control-text); box-shadow: 0 18px 44px rgba(0,0,0,.16); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: auto; }
 .money-flow-detail-drawer { left: 50%; right: auto; transform: translateX(-50%); width: min(640px, calc(100% - 24px)); max-width: calc(100% - 24px); }
-.money-flow-detail-drawer-open { box-shadow: 0 16px 38px rgba(0,0,0,.14); }
+.money-flow-detail-drawer-open { box-shadow: 0 16px 38px rgba(0,0,0,.14); max-height: min(42vh, 320px); overflow: auto; overscroll-behavior: contain; }
 .money-flow-detail-drawer-peek { width: min(360px, calc(100% - 24px)); gap: 0; padding: 8px 12px; border-radius: 20px; box-shadow: 0 12px 28px rgba(0,0,0,.12); }
 .money-flow-drawer-toggle { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; display: grid; gap: 8px; }
 .money-flow-drawer-toggle-inline { justify-items: center; gap: 6px; }
@@ -413,9 +413,14 @@
   .money-flow-theme-btn { font-size: 15px; }
   .money-flow-filter-chip { height: 38px; padding: 0 12px; font-size: 11px; }
   .money-flow-detail-tray { left: 10px; right: 10px; bottom: 10px; padding: 12px 14px; border-radius: 18px; }
-  .money-flow-detail-drawer { left: 50%; right: auto; width: calc(100% - 18px); max-width: calc(100% - 18px); }
-  .money-flow-detail-drawer-peek { width: min(320px, calc(100% - 18px)); padding: 8px 11px; border-radius: 17px; }
+  .money-flow-detail-drawer { left: 50%; right: auto; width: min(340px, calc(100% - 18px)); max-width: calc(100% - 18px); }
+  .money-flow-detail-drawer-open { max-height: min(46vh, 300px); }
+  .money-flow-detail-drawer-peek { width: min(280px, calc(100% - 18px)); padding: 8px 11px; border-radius: 17px; }
   .money-flow-detail-tray-compact { padding: 9px 12px; border-radius: 16px; }
+  .money-flow-detail-head { grid-template-columns: 1fr; }
+  .money-flow-detail-head,
+  .money-flow-drawer-row { display: grid; gap: 8px; }
+  .money-flow-detail-pill { justify-self: start; }
   .money-flow-detail-stats { grid-template-columns: 1fr; }
   .money-flow-detail-stats-compact { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
 }
@@ -423,8 +428,10 @@
 @media (max-width: 900px) {
   .money-flow-modal-shell { width: 100vw; height: 100vh; border-radius: 0; padding: 10px; border: none; }
   .money-flow-fullscreen-topbar { flex-direction: column; align-items: stretch; }
-  .money-flow-filter-bar { max-width: none; }
-  .money-flow-fullscreen-controls { justify-content: flex-start; }
+  .money-flow-filter-bar { max-width: none; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .money-flow-filter-bar::-webkit-scrollbar { display: none; }
+  .money-flow-fullscreen-controls { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .money-flow-fullscreen-controls::-webkit-scrollbar { display: none; }
 }
 
 /* ── Goal & debt cards ── */

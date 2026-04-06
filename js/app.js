@@ -938,7 +938,9 @@ function fitMoneyFlowStage(){
 }
 function shouldRotateMoneyFlowFallback(){
   const modal=document.getElementById('modal-money-flow');
-  if(!modal||!modal.classList.contains('show'))return false;
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  if(!modal||!shell||!modal.classList.contains('show'))return false;
+  if(document.fullscreenElement!==shell)return false;
   return window.innerWidth<=900&&window.innerHeight>window.innerWidth;
 }
 function syncMoneyFlowOrientationState(){
