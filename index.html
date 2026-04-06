@@ -280,11 +280,12 @@
 </div></div>
 
 <div class="modal-overlay" id="modal-goal-contribution" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Log Goal Contribution</h3>
-  <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="gc-amount" placeholder="0.00"></div>
+  <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="gc-amount" placeholder="0.00" oninput="updateGoalContributionPreview()"></div>
   <div style="display:flex;gap:8px;margin:-4px 0 12px;flex-wrap:wrap"><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(500)">+₱500</button><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(1000)">+₱1,000</button><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(2000)">+₱2,000</button><button class="quick-chip" type="button" onclick="applyGoalMonthlyContribution()">+ Planned</button></div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="gc-date"></div><div class="input-group"><label class="input-label">Account</label><select class="input" id="gc-account"></select></div></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="gc-date"></div><div class="input-group"><label class="input-label">Account</label><select class="input" id="gc-account" onchange="updateGoalContributionPreview()"></select></div></div>
+  <div id="gc-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
   <div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="gc-note" placeholder="Optional note"></div>
-  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-goal-contribution')">Cancel</button><button class="btn btn-primary" onclick="saveGoalContribution()">Save</button></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-goal-contribution')">Cancel</button><button class="btn btn-primary" id="gc-save-btn" onclick="saveGoalContribution()">Save</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-goal-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="gh-title">Goal Contribution History</h3><div id="gh-list"></div><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-goal-history')">Close</button></div></div></div>
@@ -305,10 +306,11 @@
 
 <div class="modal-overlay" id="modal-debt-payment" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Log Debt Payment</h3>
   <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px" id="dp-debt-name">Debt payment</div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="dp-amount" placeholder="0.00"></div><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="dp-date"></div></div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="dp-account"></select></div><div class="input-group"><label class="input-label">Mark monthly payment</label><select class="input" id="dp-mark-paid"><option value="yes" selected>Yes</option><option value="no">No</option></select></div></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="dp-amount" placeholder="0.00" oninput="updateDebtPaymentPreview()"></div><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="dp-date"></div></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="dp-account" onchange="updateDebtPaymentPreview()"></select></div><div class="input-group"><label class="input-label">Mark monthly payment</label><select class="input" id="dp-mark-paid"><option value="yes" selected>Yes</option><option value="no">No</option></select></div></div>
+  <div id="dp-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
   <div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="dp-note" placeholder="Optional note"></div>
-  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-debt-payment')">Cancel</button><button class="btn btn-primary" onclick="saveDebtPayment()">Save Payment</button></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-debt-payment')">Cancel</button><button class="btn btn-primary" id="dp-save-btn" onclick="saveDebtPayment()">Save Payment</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-debt-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="dh-title">Payment History</h3>
@@ -343,16 +345,17 @@
 <div class="modal-overlay" id="modal-edit-entry" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Edit Expense</h3>
   <div class="input-row">
     <div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="me-date"></div>
-    <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="me-amount" placeholder="0.00"></div>
+    <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="me-amount" placeholder="0.00" oninput="updateEntryEditPreview()"></div>
   </div>
-  <div class="input-group"><label class="input-label">Category</label><select class="input" id="me-cat"></select></div>
+  <div class="input-group"><label class="input-label">Category</label><select class="input" id="me-cat" onchange="toggleEditCustom();updateEntryEditPreview()"></select></div>
   <div class="input-group" id="me-custom-cat-wrap" style="display:none"><label class="input-label">Custom Category Name</label><input type="text" class="input" id="me-custom-cat" placeholder="e.g. Birthday Gift"></div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="me-account"></select></div><div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="me-note" placeholder="Optional note"></div></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="me-account" onchange="updateEntryEditPreview()"></select></div><div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="me-note" placeholder="Optional note"></div></div>
+  <div id="me-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
   <div class="modal-actions">
     <button class="btn btn-ghost" onclick="closeModal('modal-edit-entry')">Cancel</button>
     <button class="btn btn-danger btn-sm" onclick="deleteEditingEntry()">Delete</button>
     <button class="btn btn-ghost btn-sm" onclick="duplicateEditingEntry()">Duplicate</button>
-    <button class="btn btn-primary" onclick="saveEntryEdit()">Save</button>
+    <button class="btn btn-primary" id="me-save-btn" onclick="saveEntryEdit()">Save</button>
   </div>
 </div></div>
 
