@@ -324,41 +324,36 @@
 .money-flow-link { fill: none; stroke-linecap: round; mix-blend-mode: multiply; }
 .money-flow-caption { font-size: 11px; color: var(--text3); line-height: 1.55; margin-top: 10px; }
 .money-flow-inline-link { color: var(--accent); font-weight: 700; }
-.money-flow-modal { z-index: 340; align-items: stretch; }
-.money-flow-modal-shell { width: min(1400px, 100vw); max-width: none; height: min(94vh, 920px); max-height: none; border-radius: 24px; padding: 20px 20px 18px; display: flex; flex-direction: column; overflow: hidden; }
-.money-flow-modal-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 18px; }
-.money-flow-modal-shell .modal-handle { flex-shrink: 0; margin-bottom: 12px; }
-#money-flow-fullscreen-content { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
-.money-flow-fullscreen-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.money-flow-fullscreen-head h3 { margin: 2px 0 0; font-size: 20px; }
-.money-flow-fullscreen-kicker { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
-.money-flow-fullscreen-sub { margin-top: 6px; font-size: 13px; color: var(--text2); line-height: 1.55; max-width: 560px; }
-.money-flow-fullscreen-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.money-flow-fullscreen-summary { margin-bottom: 0; }
-.money-flow-fullscreen-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.money-flow-fullscreen-hint { font-size: 12px; color: var(--text2); line-height: 1.5; }
-.money-flow-fullscreen-zoom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.money-flow-zoom-level { min-width: 58px; text-align: center; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 800; color: var(--text); }
-.money-flow-fullscreen-stage { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 22px; background: linear-gradient(180deg, var(--surface2), rgba(255,255,255,0)); touch-action: pan-x pan-y pinch-zoom; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-.money-flow-fullscreen-stage-empty { display: flex; align-items: center; justify-content: center; min-height: 300px; }
-.money-flow-fullscreen-canvas { width: max-content; min-width: 100%; padding: 18px; }
-.money-flow-fullscreen-svg { display: block; width: 1480px; max-width: none; height: auto; }
-.money-flow-fullscreen-caption { margin-top: 0; }
+.money-flow-modal { z-index: 340; align-items: center; justify-content: center; background: rgba(2,6,23,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.money-flow-modal-shell { position: relative; width: min(1600px, calc(100vw - 24px)); height: min(calc(100vh - 24px), 960px); max-width: none; max-height: none; border-radius: 24px; padding: 12px; display: flex; flex-direction: column; overflow: hidden; background: rgba(8,15,31,.66); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 64px rgba(0,0,0,.42); }
+.money-flow-modal-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 12px; border: none; background: rgba(2,6,23,.92); }
+.money-flow-modal-shell .modal-handle { display: none; }
+.money-flow-modal-shell.money-flow-force-rotate { position: fixed; top: 50%; left: 50%; width: 100vh; height: 100vw; max-width: none; max-height: none; padding: 10px; border-radius: 0; transform: translate(-50%, -50%) rotate(90deg); transform-origin: center center; }
+.money-flow-modal-shell.money-flow-force-rotate:fullscreen { width: 100vh; height: 100vw; }
+#money-flow-fullscreen-content { position: relative; display: flex; min-height: 0; flex: 1; }
+.money-flow-fullscreen-viewer { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; }
+.money-flow-fullscreen-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.money-flow-fullscreen-controls { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; pointer-events: auto; }
+.money-flow-fullscreen-close { position: absolute; top: 10px; right: 10px; pointer-events: auto; }
+.money-flow-overlay-btn { width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(15,23,42,.78); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.28); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: var(--transition); }
+.money-flow-overlay-btn:hover:not(:disabled) { background: rgba(30,41,59,.88); }
+.money-flow-overlay-btn:disabled { opacity: .38; cursor: default; box-shadow: none; }
+.money-flow-fullscreen-stage { flex: none; overflow: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); touch-action: pan-x pan-y pinch-zoom; -webkit-overflow-scrolling: touch; scrollbar-width: thin; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.money-flow-fullscreen-stage-empty { display: flex; align-items: center; justify-content: center; }
+.money-flow-fullscreen-canvas { width: max-content; min-width: 100%; min-height: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; }
+.money-flow-fullscreen-svg { display: block; width: 1600px; max-width: none; height: auto; }
 
 @media (max-width: 480px) {
   .money-flow-head-actions { width: 100%; justify-content: space-between; }
   .money-flow-chart { padding: 10px; }
   .money-flow-node-label { font-size: 11px; }
   .money-flow-node-sub { font-size: 9px; }
-  .money-flow-fullscreen-head h3 { font-size: 18px; }
-  .money-flow-fullscreen-sub { font-size: 12px; }
-  .money-flow-fullscreen-toolbar { align-items: stretch; }
-  .money-flow-fullscreen-zoom { width: 100%; justify-content: space-between; }
-  .money-flow-fullscreen-canvas { padding: 14px; }
+  .money-flow-fullscreen-canvas { padding: 12px; }
+  .money-flow-overlay-btn { width: 38px; height: 38px; border-radius: 12px; font-size: 17px; }
 }
 
-@media (max-width: 840px) {
-  .money-flow-modal-shell { width: 100%; height: 100%; border-radius: 0; padding: 16px; }
+@media (max-width: 900px) {
+  .money-flow-modal-shell { width: 100vw; height: 100vh; border-radius: 0; padding: 10px; border: none; }
 }
 
 /* ── Goal & debt cards ── */

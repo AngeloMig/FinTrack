@@ -576,12 +576,12 @@ function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   moneyFlowZoom=Math.min(MONEY_FLOW_ZOOM_MAX,Math.max(MONEY_FLOW_ZOOM_MIN,Number(nextZoom)||1));
   const baseWidth=Number(svg.getAttribute('data-base-width')||1440);
   svg.style.width=`${Math.round(baseWidth*moneyFlowZoom)}px`;
-  const zoomLabel=document.getElementById('money-flow-zoom-level');
-  if(zoomLabel)zoomLabel.textContent=`${Math.round(moneyFlowZoom*100)}%`;
   const zoomOutBtn=document.getElementById('money-flow-zoom-out');
   const zoomInBtn=document.getElementById('money-flow-zoom-in');
+  const zoomResetBtn=document.getElementById('money-flow-zoom-reset');
   if(zoomOutBtn)zoomOutBtn.disabled=moneyFlowZoom<=MONEY_FLOW_ZOOM_MIN+.001;
   if(zoomInBtn)zoomInBtn.disabled=moneyFlowZoom>=MONEY_FLOW_ZOOM_MAX-.001;
+  if(zoomResetBtn)zoomResetBtn.disabled=Math.abs(moneyFlowZoom-1)<.001;
 }
 function stepMoneyFlowZoom(direction){
   applyMoneyFlowZoom(moneyFlowZoom+(direction*MONEY_FLOW_ZOOM_STEP));
@@ -592,18 +592,44 @@ function resetMoneyFlowZoom(){
 function unlockMoneyFlowOrientation(){
   try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}
 }
+function fitMoneyFlowStage(){
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  if(!shell||!stage)return;
+  const pad=24;
+  const availableWidth=Math.max(shell.clientWidth-pad,320);
+  const availableHeight=Math.max(shell.clientHeight-pad,180);
+  let width=availableWidth;
+  let height=Math.round(width*(9/16));
+  if(height>availableHeight){
+    height=availableHeight;
+    width=Math.round(height*(16/9));
+  }
+  stage.style.width=`${width}px`;
+  stage.style.height=`${height}px`;
+}
+function shouldRotateMoneyFlowFallback(){
+  const modal=document.getElementById('modal-money-flow');
+  if(!modal||!modal.classList.contains('show'))return false;
+  return window.innerWidth<=900&&window.innerHeight>window.innerWidth;
+}
+function syncMoneyFlowOrientationState(){
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  if(!shell)return;
+  shell.classList.toggle('money-flow-force-rotate',shouldRotateMoneyFlowFallback());
+  requestAnimationFrame(fitMoneyFlowStage);
+}
 function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData()){
   const mount=document.getElementById('money-flow-fullscreen-content');
   if(!mount)return;
-  const monthLabel=getMoneyFlowMonthLabel(data.monthKey||currentMonthKey());
-  const closeButton=`<button class="btn btn-ghost btn-sm" type="button" onclick="closeMoneyFlowFullscreen()">Close</button>`;
   if(!data.hasActivity){
-    mount.innerHTML=`<div class="money-flow-fullscreen-head"><div><div class="money-flow-fullscreen-kicker">Money Flow This Month</div><h3>Money Flow This Month</h3><div class="money-flow-fullscreen-sub">Expanded view for the current month.</div></div><div class="money-flow-fullscreen-head-actions"><span class="card-badge">${monthLabel}</span>${closeButton}</div></div><div class="money-flow-meta">A live view of how money is moving through your current month.</div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div>`;
+    mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty" id="money-flow-fullscreen-stage"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
+    syncMoneyFlowOrientationState();
     return;
   }
-  const hint=(window.innerHeight>window.innerWidth?'Landscape will be requested automatically. ':'')+'Use + or - to zoom and drag the chart to inspect details.';
-  mount.innerHTML=`<div class="money-flow-fullscreen-head"><div><div class="money-flow-fullscreen-kicker">Money Flow This Month</div><h3>Money Flow This Month</h3><div class="money-flow-fullscreen-sub">Expanded current-month Sankey view for a closer read.</div></div><div class="money-flow-fullscreen-head-actions"><span class="card-badge">${monthLabel}</span>${closeButton}</div></div><div class="money-flow-summary money-flow-fullscreen-summary">${getMoneyFlowSummaryMarkup(data)}</div><div class="money-flow-fullscreen-toolbar"><div class="money-flow-fullscreen-hint">${hint}</div><div class="money-flow-fullscreen-zoom"><button class="btn btn-ghost btn-sm" id="money-flow-zoom-out" type="button" onclick="stepMoneyFlowZoom(-1)">−</button><div class="money-flow-zoom-level" id="money-flow-zoom-level">100%</div><button class="btn btn-ghost btn-sm" id="money-flow-zoom-in" type="button" onclick="stepMoneyFlowZoom(1)">+</button><button class="btn btn-ghost btn-sm" type="button" onclick="resetMoneyFlowZoom()">Reset</button></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1480,height:820,nodeWidth:220,marginTop:78,marginBottom:30,gapY:24,minNodeHeight:28,labelMaxCategory:28,labelMaxDefault:26,stageLabelY:28,labelY:22,subLabelY:42,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month'})}</div></div><div class="money-flow-caption money-flow-fullscreen-caption">${getMoneyFlowCaption(data)}</div>`;
+  mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">-</button><button class="money-flow-overlay-btn" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">1x</button><button class="money-flow-overlay-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button></div><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month'})}</div></div></div>`;
   applyMoneyFlowZoom(moneyFlowZoom);
+  syncMoneyFlowOrientationState();
 }
 function syncMoneyFlowFullscreen(data=buildMoneyFlowData()){
   const modal=document.getElementById('modal-money-flow');
@@ -617,10 +643,12 @@ async function openMoneyFlowFullscreen(){
   moneyFlowZoom=1;
   renderMoneyFlowFullscreenContent(buildMoneyFlowData());
   openModal('modal-money-flow');
+  syncMoneyFlowOrientationState();
   if(document.fullscreenElement!==shell&&shell.requestFullscreen){
     try{await shell.requestFullscreen({navigationUI:'hide'})}catch(e){}
   }
   try{if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock('landscape')}catch(e){}
+  setTimeout(syncMoneyFlowOrientationState,220);
 }
 async function closeMoneyFlowFullscreen(){
   const modal=document.getElementById('modal-money-flow');
@@ -630,6 +658,7 @@ async function closeMoneyFlowFullscreen(){
     try{await document.exitFullscreen()}catch(e){}
   }
   unlockMoneyFlowOrientation();
+  if(shell)shell.classList.remove('money-flow-force-rotate');
   closeModal('modal-money-flow');
 }
 function renderMoneyFlowCard(){
@@ -1989,7 +2018,9 @@ setTooltipContent('tip-recent','recent');
 maybeStartOnboarding();
 setTimeout(()=>{ if(localStorage.getItem('ft_onboarded')==='1' && !document.getElementById('onboard-overlay').classList.contains('show') && shouldStartTutorial()) startTutorial(); }, 500);
 document.addEventListener('click',function(e){const wrap=e.target.closest('.notif-wrap');const panel=document.getElementById('notif-panel');if(!wrap&&panel)panel.classList.remove('show')});
-document.addEventListener('fullscreenchange',function(){const shell=document.getElementById('money-flow-fullscreen-shell');if(document.fullscreenElement!==shell)unlockMoneyFlowOrientation()});
+document.addEventListener('fullscreenchange',function(){const shell=document.getElementById('money-flow-fullscreen-shell');if(document.fullscreenElement!==shell)unlockMoneyFlowOrientation();syncMoneyFlowOrientationState()});
+window.addEventListener('resize',function(){syncMoneyFlowOrientationState()});
+window.addEventListener('orientationchange',function(){syncMoneyFlowOrientationState()});
 
 window.addEventListener('DOMContentLoaded',()=>{
   try{ renderCashflowNotification(); }catch(e){}
