@@ -487,7 +487,7 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     accountsUsed:accounts.length
   };
 }
-const MONEY_FLOW_ZOOM_MIN=.75;
+const MONEY_FLOW_ZOOM_MIN=.4;
 const MONEY_FLOW_ZOOM_MAX=2.5;
 const MONEY_FLOW_ZOOM_STEP=.25;
 let moneyFlowZoom=1;
@@ -608,9 +608,13 @@ function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   const zoomOutBtn=document.getElementById('money-flow-zoom-out');
   const zoomInBtn=document.getElementById('money-flow-zoom-in');
   const zoomResetBtn=document.getElementById('money-flow-zoom-reset');
+  const zoomLabel=moneyFlowZoom>=1?`${moneyFlowZoom.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1')}x`:`${Math.round(moneyFlowZoom*100)}%`;
   if(zoomOutBtn)zoomOutBtn.disabled=moneyFlowZoom<=MONEY_FLOW_ZOOM_MIN+.001;
   if(zoomInBtn)zoomInBtn.disabled=moneyFlowZoom>=MONEY_FLOW_ZOOM_MAX-.001;
-  if(zoomResetBtn)zoomResetBtn.disabled=Math.abs(moneyFlowZoom-1)<.001;
+  if(zoomResetBtn){
+    zoomResetBtn.disabled=Math.abs(moneyFlowZoom-1)<.001;
+    zoomResetBtn.textContent=zoomLabel;
+  }
 }
 function zoomMoneyFlowAroundPoint(nextZoom,clientX,clientY){
   const stage=document.getElementById('money-flow-fullscreen-stage');
@@ -663,6 +667,10 @@ function syncMoneyFlowOrientationState(){
   if(!shell)return;
   shell.classList.toggle('money-flow-force-rotate',shouldRotateMoneyFlowFallback());
   requestAnimationFrame(fitMoneyFlowStage);
+}
+function isMoneyFlowRotatedFallback(){
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  return !!(shell&&shell.classList.contains('money-flow-force-rotate'));
 }
 function getMoneyFlowPointerDistance(a,b){
   return Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
@@ -726,6 +734,11 @@ function setupMoneyFlowStageGestures(){
     e.preventDefault();
     const dx=e.clientX-state.panStartX;
     const dy=e.clientY-state.panStartY;
+    if(isMoneyFlowRotatedFallback()){
+      stage.scrollLeft=state.panScrollLeft-dy;
+      stage.scrollTop=state.panScrollTop+dx;
+      return;
+    }
     stage.scrollLeft=state.panScrollLeft-dx;
     stage.scrollTop=state.panScrollTop-dy;
   },{passive:false});
