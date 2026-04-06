@@ -470,8 +470,8 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
   const accountRank=new Map(accounts.map((account,idx)=>[account.key,idx]));
   const categoryRank=new Map(categories.map((category,idx)=>[category.label,idx]));
   const links=[
-    ...[...sourceAccountFlows.values()].sort((a,b)=>(sourceTotals.get(b.source)?.amount||0)-(sourceTotals.get(a.source)?.amount||0)||((accountRank.get(a.account)??0)-(accountRank.get(b.account)??0))).map(flow=>({source:`source:${flow.source}`,target:`account:${flow.account}`,value:Number(flow.amount||0),color:rgbaFromHex(sourceColorByLabel.get(flow.source),.42)})),
-    ...[...accountCategoryFlows.values()].sort((a,b)=>(accountRank.get(a.account)??0)-(accountRank.get(b.account)??0)||((categoryRank.get(a.label)??0)-(categoryRank.get(b.label)??0))).map(flow=>({source:`account:${flow.account}`,target:`category:${flow.label}`,value:Number(flow.amount||0),color:rgbaFromHex(categoryColorByLabel.get(flow.label),.40)}))
+    ...[...sourceAccountFlows.values()].sort((a,b)=>(sourceTotals.get(b.source)?.amount||0)-(sourceTotals.get(a.source)?.amount||0)||((accountRank.get(a.account)??0)-(accountRank.get(b.account)??0))).map(flow=>({id:`source:${flow.source}->account:${flow.account}`,source:`source:${flow.source}`,target:`account:${flow.account}`,value:Number(flow.amount||0),color:rgbaFromHex(sourceColorByLabel.get(flow.source),.42)})),
+    ...[...accountCategoryFlows.values()].sort((a,b)=>(accountRank.get(a.account)??0)-(accountRank.get(b.account)??0)||((categoryRank.get(a.label)??0)-(categoryRank.get(b.label)??0))).map(flow=>({id:`account:${flow.account}->category:${flow.label}`,source:`account:${flow.account}`,target:`category:${flow.label}`,value:Number(flow.amount||0),color:rgbaFromHex(categoryColorByLabel.get(flow.label),.40)}))
   ];
 
   return{
@@ -538,6 +538,247 @@ function getMoneyFlowSummaryMarkup(data){
 function getMoneyFlowCaption(data){
   return data&&data.existingBalanceUsed>0?'Smaller categories are grouped into Other. Existing Balance appears when an account sent out more than this month’s recorded income.':'Smaller categories are grouped into Other. The chart uses current-month income, account, spending, and savings activity.';
 }
+const MONEY_FLOW_FILTERS=[
+  {key:'all',label:'All'},
+  {key:'income',label:'Income'},
+  {key:'spending',label:'Spending'},
+  {key:'savings',label:'Savings'},
+  {key:'debt',label:'Debt'}
+];
+let moneyFlowViewerFilter='all';
+let moneyFlowViewerSelection=null;
+let moneyFlowDrawerMode='peek';
+let moneyFlowSuppressTapUntil=0;
+let moneyFlowLastBackgroundTapAt=0;
+function getMoneyFlowAllNodes(data){
+  return[...(data?.sources||[]),...(data?.accounts||[]),...(data?.categories||[])];
+}
+function getMoneyFlowNodeMap(data){
+  return new Map(getMoneyFlowAllNodes(data).map(node=>[node.id,node]));
+}
+function getMoneyFlowLinkMap(data){
+  return new Map((data?.links||[]).map(link=>[link.id,link]));
+}
+function getMoneyFlowNodeKind(nodeId=''){
+  if(String(nodeId).startsWith('source:'))return'source';
+  if(String(nodeId).startsWith('account:'))return'account';
+  return'category';
+}
+function fmtSignedMoneyFlow(value){
+  const amount=Number(value||0);
+  if(amount===0)return fmt(0);
+  return`${amount>0?'+':'-'}${fmt(Math.abs(amount))}`;
+}
+function getMoneyFlowPercentLabel(value,total){
+  return total>0?`${Math.round((Number(value||0)/Number(total||0))*100)}%`:'0%';
+}
+function getMoneyFlowFilterContext(data,filterMode=moneyFlowViewerFilter){
+  const linkIds=new Set();
+  const nodeIds=new Set();
+  const categoriesById=new Map((data?.categories||[]).map(category=>[category.id,category]));
+  const allLinks=data?.links||[];
+  const sourceLinks=allLinks.filter(link=>getMoneyFlowNodeKind(link.source)==='source');
+  const accountLinks=allLinks.filter(link=>getMoneyFlowNodeKind(link.source)==='account');
+  const addLink=link=>{
+    linkIds.add(link.id);
+    nodeIds.add(link.source);
+    nodeIds.add(link.target);
+  };
+  if(filterMode==='income'){
+    sourceLinks.forEach(addLink);
+    return{linkIds,nodeIds};
+  }
+  if(filterMode==='spending'){
+    const spendingLinks=accountLinks.filter(link=>{
+      const category=categoriesById.get(link.target);
+      return !!(category&&(category.label==='Other'||(category.group==='spending'&&category.label!=='Debt Payment')));
+    });
+    const accountIds=new Set(spendingLinks.map(link=>link.source));
+    spendingLinks.forEach(addLink);
+    sourceLinks.filter(link=>accountIds.has(link.target)).forEach(addLink);
+    return{linkIds,nodeIds};
+  }
+  if(filterMode==='savings'){
+    const savingsLinks=accountLinks.filter(link=>{
+      const category=categoriesById.get(link.target);
+      return !!(category&&category.group==='savings');
+    });
+    const accountIds=new Set(savingsLinks.map(link=>link.source));
+    savingsLinks.forEach(addLink);
+    sourceLinks.filter(link=>accountIds.has(link.target)).forEach(addLink);
+    return{linkIds,nodeIds};
+  }
+  if(filterMode==='debt'){
+    const debtLinks=accountLinks.filter(link=>link.target==='category:Debt Payment');
+    const accountIds=new Set(debtLinks.map(link=>link.source));
+    debtLinks.forEach(addLink);
+    sourceLinks.filter(link=>accountIds.has(link.target)).forEach(addLink);
+    return{linkIds,nodeIds};
+  }
+  allLinks.forEach(addLink);
+  return{linkIds,nodeIds};
+}
+function getMoneyFlowViewState(data,filterMode=moneyFlowViewerFilter,selection=moneyFlowViewerSelection){
+  const allNodes=getMoneyFlowAllNodes(data);
+  const visibleContext=getMoneyFlowFilterContext(data,filterMode);
+  const visibleNodeIds=filterMode==='all'?new Set(allNodes.map(node=>node.id)):visibleContext.nodeIds;
+  const visibleLinkIds=filterMode==='all'?new Set((data?.links||[]).map(link=>link.id)):visibleContext.linkIds;
+  let activeNodeIds=new Set(visibleNodeIds);
+  let activeLinkIds=new Set(visibleLinkIds);
+  const selectedNodeIds=new Set();
+  const selectedLinkIds=new Set();
+  let normalizedSelection=selection;
+  if(selection&&selection.type==='node'&&visibleNodeIds.has(selection.id)){
+    const connectedLinks=(data?.links||[]).filter(link=>visibleLinkIds.has(link.id)&&(link.source===selection.id||link.target===selection.id));
+    activeNodeIds=new Set([selection.id]);
+    activeLinkIds=new Set(connectedLinks.map(link=>link.id));
+    connectedLinks.forEach(link=>{
+      activeNodeIds.add(link.source);
+      activeNodeIds.add(link.target);
+    });
+    selectedNodeIds.add(selection.id);
+    if(!connectedLinks.length)normalizedSelection=null;
+  }else if(selection&&selection.type==='link'&&visibleLinkIds.has(selection.id)){
+    const link=(data?.links||[]).find(item=>item.id===selection.id);
+    if(link){
+      activeLinkIds=new Set([link.id]);
+      activeNodeIds=new Set([link.source,link.target]);
+      selectedLinkIds.add(link.id);
+    }else{
+      normalizedSelection=null;
+    }
+  }else if(selection){
+    normalizedSelection=null;
+  }
+  if(!normalizedSelection){
+    activeNodeIds=filterMode==='all'?new Set(allNodes.map(node=>node.id)):visibleNodeIds;
+    activeLinkIds=filterMode==='all'?new Set((data?.links||[]).map(link=>link.id)):visibleLinkIds;
+  }
+  return{filterMode,selection:normalizedSelection,visibleNodeIds,visibleLinkIds,activeNodeIds,activeLinkIds,selectedNodeIds,selectedLinkIds};
+}
+function getMoneyFlowFilterLabel(filterMode=moneyFlowViewerFilter){
+  return MONEY_FLOW_FILTERS.find(filter=>filter.key===filterMode)?.label||'All';
+}
+function getMoneyFlowDrawerHandleMarkup(ariaLabel='Collapse money flow details'){
+  return`<button class="money-flow-drawer-toggle money-flow-drawer-toggle-inline" type="button" aria-label="${ariaLabel}" onclick="toggleMoneyFlowDrawer()"><span class="money-flow-drawer-handle" aria-hidden="true"></span></button>`;
+}
+function getMoneyFlowDefaultTrayData(data,state){
+  const filterMode=state.filterMode||'all';
+  const visibleLinks=(data.links||[]).filter(link=>state.visibleLinkIds.has(link.id));
+  const visibleAccounts=(data.accounts||[]).filter(account=>state.visibleNodeIds.has(account.id));
+  const topSource=(data.sources||[]).filter(source=>state.visibleNodeIds.has(source.id))[0]||(data.sources||[])[0];
+  const topAccount=visibleAccounts.sort((a,b)=>{
+    const aFlow=visibleLinks.filter(link=>link.source===a.id||link.target===a.id).reduce((sum,link)=>sum+Number(link.value||0),0);
+    const bFlow=visibleLinks.filter(link=>link.source===b.id||link.target===b.id).reduce((sum,link)=>sum+Number(link.value||0),0);
+    return bFlow-aFlow;
+  })[0]||(data.accounts||[])[0];
+  let topOutflow=(data.categories||[]).filter(category=>state.visibleNodeIds.has(category.id))[0]||(data.categories||[])[0];
+  let trackedTotal=0;
+  if(filterMode==='income'){
+    trackedTotal=visibleLinks.filter(link=>getMoneyFlowNodeKind(link.source)==='source').reduce((sum,link)=>sum+Number(link.value||0),0);
+    topOutflow=topAccount;
+  }else if(filterMode==='savings'){
+    const savingsCategories=(data.categories||[]).filter(category=>category.group==='savings'&&state.visibleNodeIds.has(category.id));
+    topOutflow=savingsCategories[0]||topOutflow;
+    trackedTotal=savingsCategories.reduce((sum,category)=>sum+Number(category.total||0),0);
+  }else if(filterMode==='debt'){
+    topOutflow=(data.categories||[]).find(category=>category.id==='category:Debt Payment')||topOutflow;
+    trackedTotal=visibleLinks.filter(link=>link.target==='category:Debt Payment').reduce((sum,link)=>sum+Number(link.value||0),0);
+  }else if(filterMode==='spending'){
+    const spendingCategories=(data.categories||[]).filter(category=>state.visibleNodeIds.has(category.id)&&category.label!=='Debt Payment'&&(category.label==='Other'||category.group==='spending'));
+    topOutflow=spendingCategories[0]||topOutflow;
+    trackedTotal=spendingCategories.reduce((sum,category)=>sum+Number(category.total||0),0);
+  }else{
+    trackedTotal=Number(data.totalOutflow||0);
+  }
+  const trayTitle=filterMode==='all'?'Flow map':`${getMoneyFlowFilterLabel(filterMode)} routes`;
+  const trayHint=filterMode==='all'?'Tap a node or connector to focus a route. Double tap empty space to reset zoom.':`Showing ${getMoneyFlowFilterLabel(filterMode).toLowerCase()} routes. Tap a node or connector for details.`;
+  return{
+    filterMode,
+    visibleLinks,
+    topSource,
+    topAccount,
+    topOutflow,
+    trackedTotal,
+    trayTitle,
+    trayHint,
+    monthLabel:getMoneyFlowMonthLabel(data.monthKey||currentMonthKey())
+  };
+}
+function getMoneyFlowPeekDrawerMarkup(data,state){
+  const summary=getMoneyFlowDefaultTrayData(data,state);
+  const routeCount=summary.visibleLinks.length;
+  const routeLabel=`${routeCount} route${routeCount===1?'':'s'}`;
+  const metaLine=routeCount?`${routeLabel} tracked`:'No matching routes';
+  return`<div class="money-flow-detail-tray money-flow-detail-drawer money-flow-detail-drawer-peek"><button class="money-flow-drawer-toggle money-flow-drawer-toggle-peek" type="button" aria-label="Show money flow details" onclick="toggleMoneyFlowDrawer()"><span class="money-flow-drawer-handle" aria-hidden="true"></span><span class="money-flow-drawer-row"><span class="money-flow-drawer-summary"><span class="money-flow-detail-kicker">${esc(summary.monthLabel)}</span><strong class="money-flow-drawer-title">${summary.trayTitle}</strong><span class="money-flow-drawer-meta">${metaLine}</span></span><span class="money-flow-detail-pill">${routeLabel}</span></span></button></div>`;
+}
+function getMoneyFlowDefaultTrayMarkup(data,state){
+  const summary=getMoneyFlowDefaultTrayData(data,state);
+  if(!summary.visibleLinks.length){
+    return`<div class="money-flow-detail-tray money-flow-detail-drawer money-flow-detail-drawer-open money-flow-detail-tray-compact">${getMoneyFlowDrawerHandleMarkup()}<div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(getMoneyFlowFilterLabel(summary.filterMode))}</div><div class="money-flow-detail-title">No matching routes</div></div></div><div class="money-flow-detail-hint">This filter does not have tracked flow in ${esc(summary.monthLabel)}. Try another filter or switch back to All.</div></div>`;
+  }
+  return`<div class="money-flow-detail-tray money-flow-detail-drawer money-flow-detail-drawer-open money-flow-detail-tray-compact">${getMoneyFlowDrawerHandleMarkup()}<div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(summary.monthLabel)}</div><div class="money-flow-detail-title">${summary.trayTitle}</div></div><div class="money-flow-detail-pill">${summary.visibleLinks.length} route${summary.visibleLinks.length===1?'':'s'}</div></div><div class="money-flow-detail-stats money-flow-detail-stats-compact"><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Top in</span><strong>${summary.topSource?`${esc(summary.topSource.label)} ${fmtShort(summary.topSource.total)}`:'--'}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Top account</span><strong>${summary.topAccount?`${esc(summary.topAccount.label)} ${fmtShort(summary.topAccount.total)}`:'--'}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">${summary.filterMode==='income'?'Tracked inflow':'Top outflow'}</span><strong>${summary.filterMode==='income'?fmtShort(summary.trackedTotal):(summary.topOutflow?`${esc(summary.topOutflow.label)} ${fmtShort(summary.topOutflow.total)}`:'--')}</strong></div></div><div class="money-flow-detail-hint">${summary.trayHint} Tracked total: ${fmt(summary.trackedTotal)}.</div></div>`;
+}
+function getMoneyFlowSelectionTrayMarkup(data,state){
+  const nodeMap=getMoneyFlowNodeMap(data);
+  const linkMap=getMoneyFlowLinkMap(data);
+  if(!state.selection)return getMoneyFlowDefaultTrayMarkup(data,state);
+  if(state.selection.type==='link'){
+    const link=linkMap.get(state.selection.id);
+    if(!link)return getMoneyFlowDefaultTrayMarkup(data,state);
+    const source=nodeMap.get(link.source);
+    const target=nodeMap.get(link.target);
+    const shareBase=getMoneyFlowNodeKind(link.source)==='source'?((data.totalIncome||0)+(data.existingBalanceUsed||0)):Math.max(Number(data.totalOutflow||0),1);
+    const routeType=getMoneyFlowNodeKind(link.source)==='source'?'Income route':'Outflow route';
+    return`<div class="money-flow-detail-tray money-flow-detail-drawer money-flow-detail-drawer-open">${getMoneyFlowDrawerHandleMarkup()}<div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${routeType}</div><div class="money-flow-detail-title">${source?esc(source.label):'Source'} to ${target?esc(target.label):'Target'}</div><div class="money-flow-detail-sub">This connector represents one tracked route in your money map.</div></div><div class="money-flow-detail-pill">${fmtShort(link.value)}</div></div><div class="money-flow-detail-stats"><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Route value</span><strong>${fmt(link.value)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Share</span><strong>${getMoneyFlowPercentLabel(link.value,shareBase)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Stage</span><strong>${routeType}</strong></div></div><div class="money-flow-detail-hint">Tap empty space to clear focus. Double tap empty space to reset zoom.</div></div>`;
+  }
+  const node=nodeMap.get(state.selection.id);
+  if(!node)return getMoneyFlowDefaultTrayMarkup(data,state);
+  const connectedLinks=(data.links||[]).filter(link=>state.visibleLinkIds.has(link.id)&&(link.source===node.id||link.target===node.id));
+  const incomingLinks=connectedLinks.filter(link=>link.target===node.id).sort((a,b)=>b.value-a.value);
+  const outgoingLinks=connectedLinks.filter(link=>link.source===node.id).sort((a,b)=>b.value-a.value);
+  const incomingTotal=incomingLinks.reduce((sum,link)=>sum+Number(link.value||0),0);
+  const outgoingTotal=outgoingLinks.reduce((sum,link)=>sum+Number(link.value||0),0);
+  const topIn=nodeMap.get(incomingLinks[0]?.source||'');
+  const topOut=nodeMap.get(outgoingLinks[0]?.target||'');
+  const kind=getMoneyFlowNodeKind(node.id);
+  let kicker='Node focus';
+  let subtitle='This node is part of the currently visible flow.';
+  let stats=[];
+  if(kind==='source'){
+    kicker='Income source';
+    subtitle='Tracks how this source enters your accounts this month.';
+    stats=[
+      {label:'Flow',value:fmt(node.total)},
+      {label:'Share',value:getMoneyFlowPercentLabel(node.total,(data.totalIncome||0)+(data.existingBalanceUsed||0))},
+      {label:'Sent to',value:topOut?esc(topOut.label):'--'}
+    ];
+  }else if(kind==='account'){
+    kicker='Account';
+    subtitle='Shows what came into this account and where it went next.';
+    stats=[
+      {label:'In',value:fmt(incomingTotal)},
+      {label:'Out',value:fmt(outgoingTotal)},
+      {label:'Net',value:fmtSignedMoneyFlow(incomingTotal-outgoingTotal)}
+    ];
+  }else{
+    kicker=node.label==='Debt Payment'?'Debt outflow':node.group==='savings'?'Savings outflow':'Spending outflow';
+    subtitle='Shows how much this category received from your tracked accounts.';
+    stats=[
+      {label:'Received',value:fmt(incomingTotal||node.total)},
+      {label:'Share',value:getMoneyFlowPercentLabel(node.total,Math.max(Number(data.totalOutflow||0),1))},
+      {label:'From',value:topIn?esc(topIn.label):'--'}
+    ];
+  }
+  return`<div class="money-flow-detail-tray money-flow-detail-drawer money-flow-detail-drawer-open">${getMoneyFlowDrawerHandleMarkup()}<div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${kicker}</div><div class="money-flow-detail-title">${esc(node.label)}</div><div class="money-flow-detail-sub">${subtitle}</div></div><div class="money-flow-detail-pill">${connectedLinks.length} route${connectedLinks.length===1?'':'s'}</div></div><div class="money-flow-detail-stats">${stats.map(stat=>`<div class="money-flow-detail-stat"><span class="money-flow-detail-label">${stat.label}</span><strong>${stat.value}</strong></div>`).join('')}</div><div class="money-flow-detail-hint">${topOut?`Largest next step: ${esc(topOut.label)}.`:topIn?`Largest source: ${esc(topIn.label)}.`:'Tap empty space to clear focus.'} Double tap empty space to reset zoom.</div></div>`;
+}
+function getMoneyFlowDetailTrayMarkup(data,state){
+  if(moneyFlowDrawerMode==='peek')return getMoneyFlowPeekDrawerMarkup(data,state);
+  return state.selection?getMoneyFlowSelectionTrayMarkup(data,state):getMoneyFlowDefaultTrayMarkup(data,state);
+}
+function getMoneyFlowFilterChipsMarkup(){
+  return`<div class="money-flow-filter-bar">${MONEY_FLOW_FILTERS.map(filter=>`<button class="money-flow-filter-chip ${moneyFlowViewerFilter===filter.key?'active':''}" type="button" aria-pressed="${moneyFlowViewerFilter===filter.key?'true':'false'}" onclick="setMoneyFlowFilter('${filter.key}')">${filter.label}</button>`).join('')}</div>`;
+}
 function makeMoneyFlowSvg(data,opts={}){
   const width=opts.width||960;
   const height=opts.height||470;
@@ -557,12 +798,20 @@ function makeMoneyFlowSvg(data,opts={}){
   const svgClass=opts.svgClass||'money-flow-svg';
   const ariaLabel=opts.ariaLabel||'Money flow Sankey diagram for the current month';
   const svgIdAttr=opts.svgId?` id="${opts.svgId}"`:'';
+  const linkClipId=opts.linkClipId||`${opts.svgId||'money-flow-links'}-clip`;
+  const interactive=!!opts.interactive;
+  const viewState=interactive?getMoneyFlowViewState(data,opts.filterMode||moneyFlowViewerFilter,opts.selection||moneyFlowViewerSelection):null;
+  const focusMode=interactive&&!!(viewState?.selection||((opts.filterMode||moneyFlowViewerFilter)!=='all'));
   const columns=[data.sources,data.accounts,data.categories];
   const maxNodes=Math.max(...columns.map(column=>column.length),1);
   const maxTotal=Math.max(...columns.map(column=>column.reduce((sum,node)=>sum+Number(node.total||0),0)),1);
   const usableHeight=height-marginTop-marginBottom-gapY*Math.max(maxNodes-1,0);
   const scale=usableHeight/maxTotal;
   const xPositions=[20,Math.round((width-nodeWidth)/2),width-nodeWidth-20];
+  const linkClipRects=[
+    {x:xPositions[0]+nodeWidth,y:0,width:Math.max(xPositions[1]-(xPositions[0]+nodeWidth),0),height},
+    {x:xPositions[1]+nodeWidth,y:0,width:Math.max(xPositions[2]-(xPositions[1]+nodeWidth),0),height}
+  ].filter(rect=>rect.width>0);
 
   columns.forEach((column,columnIndex)=>{
     let currentY=marginTop;
@@ -589,16 +838,38 @@ function makeMoneyFlowSvg(data,opts={}){
     const y2=target.y+target.inOffset+(thickness/2);
     target.inOffset+=thickness;
     const curve=Math.max((x2-x1)*.38,48);
-    return`<path class="money-flow-link" d="M ${x1} ${y1} C ${x1+curve} ${y1}, ${x2-curve} ${y2}, ${x2} ${y2}" stroke="${link.color}" stroke-width="${thickness}"></path>`;
+    const linkClasses=['money-flow-link'];
+    if(interactive){
+      linkClasses.push('is-interactive');
+      if(focusMode){
+        if(viewState?.selectedLinkIds.has(link.id))linkClasses.push('is-selected');
+        else if(viewState?.activeLinkIds.has(link.id))linkClasses.push('is-active');
+        else linkClasses.push('is-muted');
+      }
+    }
+    const dataAttr=interactive?` data-link-id="${encodeURIComponent(link.id)}"`:'';
+    return`<path class="${linkClasses.join(' ')}"${dataAttr} d="M ${x1} ${y1} C ${x1+curve} ${y1}, ${x2-curve} ${y2}, ${x2} ${y2}" stroke="${link.color}" stroke-width="${thickness}"></path>`;
   }).join('');
 
   const stageLabels=[{x:xPositions[0]+nodeWidth/2,label:'Income'},{x:xPositions[1]+nodeWidth/2,label:'Accounts'},{x:xPositions[2]+nodeWidth/2,label:'Outflows'}];
   const nodes=[...data.sources,...data.accounts,...data.categories].map(node=>{
     const label=`${node.icon?`${node.icon} `:''}${truncateMoneyFlowLabel(node.label,node.id.startsWith('category:')?labelMaxCategory:labelMaxDefault)}`;
     const amountLine=node.height>=Math.max(38,subLabelY+4)?`<text class="money-flow-node-sub" x="${node.x+labelX}" y="${node.y+subLabelY}">${esc(fmtShort(node.total))}</text>`:'';
-    return`<g><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
+    const nodeClasses=['money-flow-node-group'];
+    if(interactive){
+      nodeClasses.push('is-interactive');
+      if(focusMode){
+        if(viewState?.selectedNodeIds.has(node.id))nodeClasses.push('is-selected');
+        else if(viewState?.activeNodeIds.has(node.id))nodeClasses.push('is-active');
+        else nodeClasses.push('is-muted');
+      }
+    }
+    const dataAttr=interactive?` data-node-id="${encodeURIComponent(node.id)}"`:'';
+    return`<g class="${nodeClasses.join(' ')}"${dataAttr}><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
   }).join('');
-  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}"><g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text>`).join('')}</g><g>${paths}</g><g>${nodes}</g></svg>`;
+  const defs=linkClipRects.length?`<defs><clipPath id="${linkClipId}" clipPathUnits="userSpaceOnUse">${linkClipRects.map(rect=>`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>`).join('')}</clipPath></defs>`:'';
+  const linkLayer=linkClipRects.length?`<g clip-path="url(#${linkClipId})">${paths}</g>`:`<g>${paths}</g>`;
+  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${defs}<g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text>`).join('')}</g>${linkLayer}<g>${nodes}</g></svg>`;
 }
 function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   const svg=document.getElementById('money-flow-fullscreen-svg');
@@ -645,10 +916,17 @@ function unlockMoneyFlowOrientation(){
 function fitMoneyFlowStage(){
   const shell=document.getElementById('money-flow-fullscreen-shell');
   const stage=document.getElementById('money-flow-fullscreen-stage');
-  if(!shell||!stage)return;
+  const viewer=document.querySelector('#money-flow-fullscreen-content .money-flow-fullscreen-viewer');
+  if(!shell||!stage||!viewer)return;
   const pad=24;
+  const topbar=document.querySelector('#money-flow-fullscreen-content .money-flow-fullscreen-topbar');
+  const detailTray=document.querySelector('#money-flow-fullscreen-content .money-flow-detail-tray');
+  const safeTop=(topbar?topbar.offsetHeight:0)+12;
+  const safeBottom=(detailTray?detailTray.offsetHeight:0)+12;
+  viewer.style.setProperty('--money-flow-safe-top',`${safeTop}px`);
+  viewer.style.setProperty('--money-flow-safe-bottom',`${safeBottom}px`);
   const availableWidth=Math.max(shell.clientWidth-pad,320);
-  const availableHeight=Math.max(shell.clientHeight-pad,180);
+  const availableHeight=Math.max(shell.clientHeight-safeTop-safeBottom-pad,180);
   let width=availableWidth;
   let height=Math.round(width*(9/16));
   if(height>availableHeight){
@@ -682,7 +960,7 @@ function getMoneyFlowPointerCenter(a,b){
 function setupMoneyFlowStageGestures(){
   const stage=document.getElementById('money-flow-fullscreen-stage');
   if(!stage||stage.dataset.gesturesBound==='1')return;
-  const state={pointers:new Map(),panPointerId:null,panStartX:0,panStartY:0,panScrollLeft:0,panScrollTop:0,pinchDistance:0,pinchZoom:1};
+  const state={pointers:new Map(),panPointerId:null,panStartX:0,panStartY:0,panScrollLeft:0,panScrollTop:0,pinchDistance:0,pinchZoom:1,panMoved:false};
   const refreshSinglePanState=()=>{
     if(state.pointers.size!==1){
       state.panPointerId=null;
@@ -694,13 +972,17 @@ function setupMoneyFlowStageGestures(){
     state.panStartY=pointer.y;
     state.panScrollLeft=stage.scrollLeft;
     state.panScrollTop=stage.scrollTop;
+    state.panMoved=false;
   };
   const handlePointerEnd=e=>{
+    const wasPinching=state.pointers.size>=2||state.pinchDistance>0;
+    const movedDuringPan=state.panPointerId===e.pointerId&&state.panMoved;
     state.pointers.delete(e.pointerId);
     if(state.pointers.size<2){
       state.pinchDistance=0;
       state.pinchZoom=moneyFlowZoom;
     }
+    if(wasPinching||movedDuringPan)moneyFlowSuppressTapUntil=Date.now()+220;
     refreshSinglePanState();
     stage.classList.toggle('is-dragging',state.pointers.size===1);
   };
@@ -735,6 +1017,7 @@ function setupMoneyFlowStageGestures(){
     e.preventDefault();
     const dx=e.clientX-state.panStartX;
     const dy=e.clientY-state.panStartY;
+    if(Math.abs(dx)>6||Math.abs(dy)>6)state.panMoved=true;
     if(isMoneyFlowRotatedFallback()){
       stage.scrollLeft=state.panScrollLeft-dy;
       stage.scrollTop=state.panScrollTop+dx;
@@ -749,9 +1032,91 @@ function setupMoneyFlowStageGestures(){
   stage.dataset.gesturesBound='1';
   moneyFlowStageGestureState=state;
 }
-function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData()){
+function shouldIgnoreMoneyFlowTap(){
+  return Date.now()<moneyFlowSuppressTapUntil;
+}
+function rerenderMoneyFlowFullscreen(preserveViewport=true){
+  renderMoneyFlowFullscreenContent(buildMoneyFlowData(),{preserveViewport});
+}
+function toggleMoneyFlowDrawer(){
+  moneyFlowDrawerMode=moneyFlowDrawerMode==='peek'?'summary':'peek';
+  rerenderMoneyFlowFullscreen(true);
+}
+function setMoneyFlowFilter(filter){
+  if(!MONEY_FLOW_FILTERS.find(item=>item.key===filter))return;
+  const hadSelection=!!moneyFlowViewerSelection;
+  moneyFlowViewerFilter=filter;
+  moneyFlowViewerSelection=null;
+  if(hadSelection)moneyFlowDrawerMode='peek';
+  moneyFlowLastBackgroundTapAt=0;
+  rerenderMoneyFlowFullscreen(true);
+}
+function handleMoneyFlowNodeTap(nodeId){
+  if(shouldIgnoreMoneyFlowTap())return;
+  moneyFlowViewerSelection=moneyFlowViewerSelection&&moneyFlowViewerSelection.type==='node'&&moneyFlowViewerSelection.id===nodeId?null:{type:'node',id:nodeId};
+  moneyFlowDrawerMode=moneyFlowViewerSelection?'summary':'peek';
+  moneyFlowLastBackgroundTapAt=0;
+  rerenderMoneyFlowFullscreen(true);
+}
+function handleMoneyFlowLinkTap(linkId){
+  if(shouldIgnoreMoneyFlowTap())return;
+  moneyFlowViewerSelection=moneyFlowViewerSelection&&moneyFlowViewerSelection.type==='link'&&moneyFlowViewerSelection.id===linkId?null:{type:'link',id:linkId};
+  moneyFlowDrawerMode=moneyFlowViewerSelection?'summary':'peek';
+  moneyFlowLastBackgroundTapAt=0;
+  rerenderMoneyFlowFullscreen(true);
+}
+function handleMoneyFlowBackgroundTap(){
+  if(shouldIgnoreMoneyFlowTap())return;
+  const nowTs=Date.now();
+  if(nowTs-moneyFlowLastBackgroundTapAt<320){
+    moneyFlowLastBackgroundTapAt=0;
+    moneyFlowViewerSelection=null;
+    moneyFlowDrawerMode='peek';
+    resetMoneyFlowZoom();
+    rerenderMoneyFlowFullscreen(false);
+    return;
+  }
+  moneyFlowLastBackgroundTapAt=nowTs;
+  if(moneyFlowViewerSelection){
+    moneyFlowViewerSelection=null;
+    moneyFlowDrawerMode='peek';
+    rerenderMoneyFlowFullscreen(true);
+  }
+}
+function setupMoneyFlowInteractiveHandlers(){
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  if(!stage||stage.dataset.interactionsBound==='1')return;
+  stage.addEventListener('click',function(e){
+    if(shouldIgnoreMoneyFlowTap())return;
+    const linkEl=e.target.closest('.money-flow-link[data-link-id]');
+    if(linkEl){
+      handleMoneyFlowLinkTap(decodeURIComponent(linkEl.getAttribute('data-link-id')||''));
+      return;
+    }
+    const nodeEl=e.target.closest('.money-flow-node-group[data-node-id]');
+    if(nodeEl){
+      handleMoneyFlowNodeTap(decodeURIComponent(nodeEl.getAttribute('data-node-id')||''));
+      return;
+    }
+    handleMoneyFlowBackgroundTap();
+  });
+  stage.addEventListener('dblclick',function(e){
+    if(e.target.closest('.money-flow-link[data-link-id], .money-flow-node-group[data-node-id]'))return;
+    e.preventDefault();
+    moneyFlowViewerSelection=null;
+    moneyFlowDrawerMode='peek';
+    moneyFlowLastBackgroundTapAt=0;
+    resetMoneyFlowZoom();
+    rerenderMoneyFlowFullscreen(false);
+  });
+  stage.dataset.interactionsBound='1';
+}
+function renderMoneyFlowFullscreenContentLegacy(data=buildMoneyFlowData(),opts={}){
   const mount=document.getElementById('money-flow-fullscreen-content');
   if(!mount)return;
+  const previousStage=opts.preserveViewport?document.getElementById('money-flow-fullscreen-stage'):null;
+  const previousScrollLeft=previousStage?previousStage.scrollLeft:0;
+  const previousScrollTop=previousStage?previousStage.scrollTop:0;
   if(!data.hasActivity){
     mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty" id="money-flow-fullscreen-stage"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
     applyMoneyFlowViewerTheme();
@@ -764,6 +1129,33 @@ function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData()){
   setupMoneyFlowStageGestures();
   syncMoneyFlowOrientationState();
 }
+function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData(),opts={}){
+  const mount=document.getElementById('money-flow-fullscreen-content');
+  if(!mount)return;
+  const previousStage=opts.preserveViewport?document.getElementById('money-flow-fullscreen-stage'):null;
+  const previousScrollLeft=previousStage?previousStage.scrollLeft:0;
+  const previousScrollTop=previousStage?previousStage.scrollTop:0;
+  const emptyReason=esc(data.reason||'No money-flow activity recorded yet this month.');
+  if(!data.hasActivity){
+    mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-topbar"><div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div></div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty" id="money-flow-fullscreen-stage"><div class="empty"><div class="empty-icon">~</div><div class="empty-text">${emptyReason}</div></div></div></div>`;
+    applyMoneyFlowViewerTheme();
+    syncMoneyFlowOrientationState();
+    return;
+  }
+  const viewState=getMoneyFlowViewState(data,moneyFlowViewerFilter,moneyFlowViewerSelection);
+  moneyFlowViewerSelection=viewState.selection||null;
+  mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-topbar">${getMoneyFlowFilterChipsMarkup()}<div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">-</button><button class="money-flow-overlay-btn" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">1x</button><button class="money-flow-overlay-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-light" type="button" aria-label="Use light mode" title="Light mode" onclick="setMoneyFlowViewerTheme('light')">&#9728;</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-dark" type="button" aria-label="Use dark mode" title="Dark mode" onclick="setMoneyFlowViewerTheme('dark')">&#9790;</button><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div>${getMoneyFlowDetailTrayMarkup(data,viewState)}</div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month',interactive:true,filterMode:moneyFlowViewerFilter,selection:moneyFlowViewerSelection})}</div></div></div>`;
+  applyMoneyFlowZoom(moneyFlowZoom);
+  applyMoneyFlowViewerTheme();
+  setupMoneyFlowStageGestures();
+  setupMoneyFlowInteractiveHandlers();
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  if(stage&&opts.preserveViewport){
+    stage.scrollLeft=previousScrollLeft;
+    stage.scrollTop=previousScrollTop;
+  }
+  syncMoneyFlowOrientationState();
+}
 function syncMoneyFlowFullscreen(data=buildMoneyFlowData()){
   const modal=document.getElementById('modal-money-flow');
   if(!modal||!modal.classList.contains('show'))return;
@@ -774,6 +1166,11 @@ async function openMoneyFlowFullscreen(){
   const shell=document.getElementById('money-flow-fullscreen-shell');
   if(!modal||!shell)return;
   moneyFlowZoom=1;
+  moneyFlowViewerFilter='all';
+  moneyFlowViewerSelection=null;
+  moneyFlowDrawerMode='peek';
+  moneyFlowSuppressTapUntil=0;
+  moneyFlowLastBackgroundTapAt=0;
   renderMoneyFlowFullscreenContent(buildMoneyFlowData());
   openModal('modal-money-flow');
   syncMoneyFlowOrientationState();
@@ -791,6 +1188,10 @@ async function closeMoneyFlowFullscreen(){
     try{await document.exitFullscreen()}catch(e){}
   }
   unlockMoneyFlowOrientation();
+  moneyFlowViewerSelection=null;
+  moneyFlowDrawerMode='peek';
+  moneyFlowSuppressTapUntil=0;
+  moneyFlowLastBackgroundTapAt=0;
   if(shell)shell.classList.remove('money-flow-force-rotate');
   closeModal('modal-money-flow');
 }
