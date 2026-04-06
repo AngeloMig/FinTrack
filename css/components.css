@@ -306,6 +306,26 @@
 .bar-track { height: 26px; border-radius: 7px; }
 .bar-fill { border-radius: 7px; transition: width .4s cubic-bezier(.4,0,.2,1); }
 
+.money-flow-meta { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
+.money-flow-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.money-flow-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text2); }
+.money-flow-pill strong { color: var(--text); }
+.money-flow-chart { border: 1px solid var(--border); border-radius: 18px; background: linear-gradient(180deg, var(--surface2), rgba(255,255,255,0)); padding: 12px; }
+.money-flow-svg { width: 100%; height: auto; display: block; }
+.money-flow-stage { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; fill: var(--text3); }
+.money-flow-node { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+.money-flow-node-accent { opacity: .92; }
+.money-flow-node-label { font-size: 12px; font-weight: 700; fill: var(--text); }
+.money-flow-node-sub { font-size: 10px; fill: var(--text3); }
+.money-flow-link { fill: none; stroke-linecap: round; mix-blend-mode: multiply; }
+.money-flow-caption { font-size: 11px; color: var(--text3); line-height: 1.55; margin-top: 10px; }
+
+@media (max-width: 480px) {
+  .money-flow-chart { padding: 10px; }
+  .money-flow-node-label { font-size: 11px; }
+  .money-flow-node-sub { font-size: 9px; }
+}
+
 /* ── Goal & debt cards ── */
 .goal-card { padding: 18px; }
 .goal-card:hover { box-shadow: var(--shadow); }

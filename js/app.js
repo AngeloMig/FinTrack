@@ -374,6 +374,190 @@ function renderTrendSummary(){
   wrap.innerHTML=`<div class="trend-note">Average monthly spending: <strong>${fmt(avg)}</strong>. ${note}</div>`;
 }
 
+function rgbaFromHex(hex,alpha=.35){
+  const clean=String(hex||'').replace('#','');
+  if(clean.length!==6)return`rgba(99,102,241,${alpha})`;
+  const num=parseInt(clean,16);
+  if(Number.isNaN(num))return`rgba(99,102,241,${alpha})`;
+  return`rgba(${(num>>16)&255},${(num>>8)&255},${num&255},${alpha})`;
+}
+function truncateMoneyFlowLabel(label,max=18){const text=String(label||'').trim();return text.length>max?text.slice(0,Math.max(max-1,1))+'…':text}
+function addMoneyFlowAmount(map,key,amount,seed={}){const next=(map.get(key)||{...seed,amount:0});next.amount=Number(next.amount||0)+Number(amount||0);map.set(key,next);return next}
+function getMoneyFlowSourceIcon(source){const lower=String(source||'').toLowerCase();if(lower==='salary')return'💼';if(lower.includes('bonus'))return'✨';if(lower.includes('gift'))return'🎁';if(lower.includes('freelance'))return'🧑‍💻';if(lower==='existing balance')return'🏦';return'💵'}
+function getMoneyFlowCategoryMeta(entry){
+  if(entry.isGoalContribution)return{label:'Goal Contribution',group:'savings',icon:'🎯'};
+  if(entry.isDebtPayment)return{label:'Debt Payment',group:'spending',icon:'💳'};
+  const info=getCatInfo(entry.category||'');
+  const group=info.group==='savings'?'savings':'spending';
+  return{label:entry.category||'Uncategorized',group,icon:info.icon||'📦'};
+}
+function buildMoneyFlowData(monthKey=currentMonthKey()){
+  const monthIncomes=incomes.filter(i=>(i.date||'').slice(0,7)===monthKey&&Number(i.amount||0)>0);
+  const monthEntries=entries.filter(e=>(e.date||'').slice(0,7)===monthKey&&Number(e.amount||0)>0);
+  const sourceTotals=new Map();
+  const sourceAccountFlows=new Map();
+  const accountMeta=new Map();
+  const accountInTotals=new Map();
+  const accountOutTotals=new Map();
+  const rawCategoryTotals=new Map();
+  const rawAccountCategoryFlows=new Map();
+
+  monthIncomes.forEach(income=>{
+    const source=(income.source||'Other Income').trim()||'Other Income';
+    const account=income.account||getDefaultAccountKey()||'';
+    const amount=Number(income.amount||0);
+    addMoneyFlowAmount(sourceTotals,source,amount,{label:source,icon:getMoneyFlowSourceIcon(source)});
+    addMoneyFlowAmount(sourceAccountFlows,`${source}|||${account}`,amount,{source,account});
+    addMoneyFlowAmount(accountInTotals,account,amount,{key:account});
+    const accInfo=getAccountInfo(account);
+    accountMeta.set(account,{key:account,label:accInfo.name,icon:accInfo.icon||'🏦'});
+  });
+
+  monthEntries.forEach(entry=>{
+    const account=entry.account||getDefaultAccountKey()||'';
+    const amount=Number(entry.amount||0);
+    const categoryMeta=getMoneyFlowCategoryMeta(entry);
+    addMoneyFlowAmount(rawCategoryTotals,categoryMeta.label,amount,{...categoryMeta});
+    addMoneyFlowAmount(rawAccountCategoryFlows,`${account}|||${categoryMeta.label}`,amount,{account,label:categoryMeta.label,group:categoryMeta.group});
+    addMoneyFlowAmount(accountOutTotals,account,amount,{key:account});
+    const accInfo=getAccountInfo(account);
+    accountMeta.set(account,{key:account,label:accInfo.name,icon:accInfo.icon||'🏦'});
+  });
+
+  const spendingCategories=[...rawCategoryTotals.values()].filter(cat=>cat.group==='spending').sort((a,b)=>b.amount-a.amount);
+  const savingsCategories=[...rawCategoryTotals.values()].filter(cat=>cat.group==='savings').sort((a,b)=>b.amount-a.amount);
+  const keptCategoryLabels=new Set([
+    ...spendingCategories.slice(0,4).map(cat=>cat.label),
+    ...savingsCategories.slice(0,3).map(cat=>cat.label)
+  ]);
+  const groupedCategories=new Map();
+  const accountCategoryFlows=new Map();
+
+  rawAccountCategoryFlows.forEach(flow=>{
+    const rawMeta=rawCategoryTotals.get(flow.label);
+    const label=keptCategoryLabels.has(flow.label)?flow.label:'Other';
+    const group=keptCategoryLabels.has(flow.label)?rawMeta.group:'other';
+    const icon=keptCategoryLabels.has(flow.label)?rawMeta.icon:'📦';
+    addMoneyFlowAmount(groupedCategories,label,flow.amount,{label,group,icon});
+    addMoneyFlowAmount(accountCategoryFlows,`${flow.account}|||${label}`,flow.amount,{account:flow.account,label});
+  });
+
+  if(!accountCategoryFlows.size){
+    return{hasActivity:false,monthKey,reason:monthIncomes.length?'No spending or savings activity recorded yet this month.':'No money-flow activity recorded yet this month.'};
+  }
+
+  accountOutTotals.forEach((totals,account)=>{
+    const outgoing=Number(totals.amount||0);
+    const incoming=Number(accountInTotals.get(account)?.amount||0);
+    if(outgoing>incoming){
+      const difference=outgoing-incoming;
+      addMoneyFlowAmount(sourceTotals,'Existing Balance',difference,{label:'Existing Balance',icon:'🏦'});
+      addMoneyFlowAmount(sourceAccountFlows,`Existing Balance|||${account}`,difference,{source:'Existing Balance',account});
+      addMoneyFlowAmount(accountInTotals,account,difference,{key:account});
+    }
+  });
+
+  const sources=[...sourceTotals.values()].sort((a,b)=>b.amount-a.amount).map((source,idx)=>({id:`source:${source.label}`,label:source.label,icon:source.icon,total:Number(source.amount||0),color:source.label==='Existing Balance'?'#94a3b8':CHART_COLORS[(idx+1)%CHART_COLORS.length]}));
+  const accounts=[...accountMeta.values()].sort((a,b)=>{const aTotal=Math.max(Number(accountInTotals.get(a.key)?.amount||0),Number(accountOutTotals.get(a.key)?.amount||0));const bTotal=Math.max(Number(accountInTotals.get(b.key)?.amount||0),Number(accountOutTotals.get(b.key)?.amount||0));return bTotal-aTotal}).map((account,idx)=>({id:`account:${account.key}`,key:account.key,label:account.label,icon:account.icon,total:Math.max(Number(accountInTotals.get(account.key)?.amount||0),Number(accountOutTotals.get(account.key)?.amount||0)),color:CHART_COLORS[(idx+5)%CHART_COLORS.length]}));
+  let spendingColorIndex=0;
+  let savingsColorIndex=7;
+  const categories=[...groupedCategories.values()].sort((a,b)=>{const groupOrder={spending:0,savings:1,other:2};if(groupOrder[a.group]!==groupOrder[b.group])return groupOrder[a.group]-groupOrder[b.group];return b.amount-a.amount}).map(category=>({id:`category:${category.label}`,label:category.label,icon:category.icon,group:category.group,total:Number(category.amount||0),color:category.label==='Other'?'#94a3b8':category.group==='savings'?CHART_COLORS[(savingsColorIndex++)%CHART_COLORS.length]:CHART_COLORS[(spendingColorIndex++)%CHART_COLORS.length]}));
+
+  const sourceColorByLabel=new Map(sources.map(source=>[source.label,source.color]));
+  const categoryColorByLabel=new Map(categories.map(category=>[category.label,category.color]));
+  const accountRank=new Map(accounts.map((account,idx)=>[account.key,idx]));
+  const categoryRank=new Map(categories.map((category,idx)=>[category.label,idx]));
+  const links=[
+    ...[...sourceAccountFlows.values()].sort((a,b)=>(sourceTotals.get(b.source)?.amount||0)-(sourceTotals.get(a.source)?.amount||0)||((accountRank.get(a.account)??0)-(accountRank.get(b.account)??0))).map(flow=>({source:`source:${flow.source}`,target:`account:${flow.account}`,value:Number(flow.amount||0),color:rgbaFromHex(sourceColorByLabel.get(flow.source),.42)})),
+    ...[...accountCategoryFlows.values()].sort((a,b)=>(accountRank.get(a.account)??0)-(accountRank.get(b.account)??0)||((categoryRank.get(a.label)??0)-(categoryRank.get(b.label)??0))).map(flow=>({source:`account:${flow.account}`,target:`category:${flow.label}`,value:Number(flow.amount||0),color:rgbaFromHex(categoryColorByLabel.get(flow.label),.40)}))
+  ];
+
+  return{
+    hasActivity:true,
+    monthKey,
+    sources,
+    accounts,
+    categories,
+    links,
+    totalIncome:monthIncomes.reduce((sum,income)=>sum+Number(income.amount||0),0),
+    totalOutflow:monthEntries.reduce((sum,entry)=>sum+Number(entry.amount||0),0),
+    savingsOutflow:categories.filter(category=>category.group==='savings').reduce((sum,category)=>sum+category.total,0),
+    existingBalanceUsed:Number(sourceTotals.get('Existing Balance')?.amount||0),
+    accountsUsed:accounts.length
+  };
+}
+function makeMoneyFlowSvg(data){
+  const width=960;
+  const height=470;
+  const nodeWidth=148;
+  const marginTop=54;
+  const marginBottom=18;
+  const gapY=18;
+  const minNodeHeight=22;
+  const columns=[data.sources,data.accounts,data.categories];
+  const maxNodes=Math.max(...columns.map(column=>column.length),1);
+  const maxTotal=Math.max(...columns.map(column=>column.reduce((sum,node)=>sum+Number(node.total||0),0)),1);
+  const usableHeight=height-marginTop-marginBottom-gapY*Math.max(maxNodes-1,0);
+  const scale=usableHeight/maxTotal;
+  const xPositions=[20,Math.round((width-nodeWidth)/2),width-nodeWidth-20];
+
+  columns.forEach((column,columnIndex)=>{
+    let currentY=marginTop;
+    column.forEach(node=>{
+      node.x=xPositions[columnIndex];
+      node.y=currentY;
+      node.height=Math.max(minNodeHeight,Number(node.total||0)*scale);
+      node.inOffset=0;
+      node.outOffset=0;
+      currentY+=node.height+gapY;
+    });
+  });
+
+  const nodeById=new Map([...data.sources,...data.accounts,...data.categories].map(node=>[node.id,node]));
+  const paths=data.links.map(link=>{
+    const source=nodeById.get(link.source);
+    const target=nodeById.get(link.target);
+    if(!source||!target)return'';
+    const thickness=Math.max(Number(link.value||0)*scale,6);
+    const x1=source.x+nodeWidth;
+    const y1=source.y+source.outOffset+(thickness/2);
+    source.outOffset+=thickness;
+    const x2=target.x;
+    const y2=target.y+target.inOffset+(thickness/2);
+    target.inOffset+=thickness;
+    const curve=Math.max((x2-x1)*.38,48);
+    return`<path class="money-flow-link" d="M ${x1} ${y1} C ${x1+curve} ${y1}, ${x2-curve} ${y2}, ${x2} ${y2}" stroke="${link.color}" stroke-width="${thickness}"></path>`;
+  }).join('');
+
+  const stageLabels=[{x:xPositions[0]+nodeWidth/2,label:'Income'},{x:xPositions[1]+nodeWidth/2,label:'Accounts'},{x:xPositions[2]+nodeWidth/2,label:'Outflows'}];
+  const nodes=[...data.sources,...data.accounts,...data.categories].map(node=>{
+    const label=`${node.icon?`${node.icon} `:''}${truncateMoneyFlowLabel(node.label,node.id.startsWith('category:')?17:18)}`;
+    const amountLine=node.height>=38?`<text class="money-flow-node-sub" x="${node.x+14}" y="${node.y+34}">${esc(fmtShort(node.total))}</text>`:'';
+    return`<g><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="18"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="7" height="${node.height}" rx="18" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+14}" y="${node.y+17}">${esc(label)}</text>${amountLine}</g>`;
+  }).join('');
+  return`<svg class="money-flow-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Money flow Sankey diagram for the current month"><g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="22" text-anchor="middle">${stage.label}</text>`).join('')}</g><g>${paths}</g><g>${nodes}</g></svg>`;
+}
+function renderMoneyFlowCard(){
+  const mount=document.getElementById('money-flow-card');
+  if(!mount)return;
+  const data=buildMoneyFlowData();
+  const monthLabel=new Date(`${data.monthKey||currentMonthKey()}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+  if(!data.hasActivity){
+    mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Follow how income moves through accounts into this month’s categories.</div>':''}<div class="money-flow-meta">A live view of how money is moving through your current month.</div><div id="money-flow-chart" class="money-flow-chart"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
+    return;
+  }
+  const spendingOutflow=Math.max(data.totalOutflow-data.savingsOutflow,0);
+  const summaryPills=[
+    `<div class="money-flow-pill">In <strong>${fmtShort(data.totalIncome)}</strong></div>`,
+    `<div class="money-flow-pill">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
+    `<div class="money-flow-pill">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
+    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?'':'s'}</div>`
+  ];
+  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill">Existing balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
+  const caption=data.existingBalanceUsed>0?'Smaller categories are grouped into Other. Existing Balance appears when an account sent out more than this month’s recorded income.':'Smaller categories are grouped into Other. The chart uses current-month income, account, spending, and savings activity.';
+  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Tracks this month’s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">Current-month cash movement from income sources into accounts, then into your biggest spending and savings categories.</div><div class="money-flow-summary">${summaryPills.join('')}</div><div id="money-flow-chart" class="money-flow-chart">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${caption}</div></div>`;
+}
+
 
 function getSafeSpendRealData(){
   const monthKey = currentMonthKey();
@@ -1540,6 +1724,7 @@ function render(){
   }else{
     aiCard.innerHTML='';
   }
+  renderMoneyFlowCard();
 
   // Budget attention — only show categories near or over limit
   const nonSavings=ac.filter(c=>c.group!=='savings');
