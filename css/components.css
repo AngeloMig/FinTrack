@@ -338,6 +338,7 @@
 .money-flow-fullscreen-viewer { --money-flow-safe-top: 0px; --money-flow-safe-bottom: 0px; position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; padding: var(--money-flow-safe-top) 0 var(--money-flow-safe-bottom); box-sizing: border-box; }
 .money-flow-fullscreen-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .money-flow-fullscreen-topbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; pointer-events: none; }
+.money-flow-fullscreen-topbar.money-flow-fullscreen-topbar-controls { justify-content: flex-end; }
 .money-flow-fullscreen-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
 .money-flow-fullscreen-close { pointer-events: auto; }
 .money-flow-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; pointer-events: auto; max-width: min(70%, 920px); }
@@ -353,6 +354,9 @@
 .money-flow-fullscreen-stage.is-dragging { cursor: grabbing; }
 .money-flow-fullscreen-stage-empty { display: flex; align-items: center; justify-content: center; }
 .money-flow-fullscreen-canvas { width: max-content; min-width: 100%; min-height: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; }
+.money-flow-fullscreen-stage.money-flow-stage-force-rotate { overflow: auto; }
+.money-flow-fullscreen-stage.money-flow-stage-force-rotate .money-flow-fullscreen-canvas { position: relative; width: var(--money-flow-rotated-box-width); min-width: var(--money-flow-rotated-box-width); height: var(--money-flow-rotated-box-height); min-height: var(--money-flow-rotated-box-height); padding: 0; }
+.money-flow-fullscreen-stage.money-flow-stage-force-rotate .money-flow-fullscreen-svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); transform-origin: center center; }
 .money-flow-fullscreen-svg { display: block; width: 1600px; max-width: none; height: auto; }
 .money-flow-fullscreen-stage .money-flow-link,
 .money-flow-fullscreen-stage .money-flow-node-group { transition: opacity .18s ease, filter .18s ease; }
@@ -368,18 +372,18 @@
 .money-flow-node-group.is-selected .money-flow-node { stroke: var(--accent); stroke-width: 2.2; }
 .money-flow-node-group.is-active .money-flow-node-accent,
 .money-flow-node-group.is-selected .money-flow-node-accent { opacity: 1; }
-.money-flow-detail-tray { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 12px; padding: 14px 16px; border-radius: 22px; border: 1px solid var(--money-flow-control-border); background: var(--money-flow-control-bg); color: var(--money-flow-control-text); box-shadow: 0 18px 44px rgba(0,0,0,.16); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: auto; }
-.money-flow-detail-drawer { left: 50%; right: auto; transform: translateX(-50%); width: min(640px, calc(100% - 24px)); max-width: calc(100% - 24px); }
-.money-flow-detail-drawer-open { box-shadow: 0 16px 38px rgba(0,0,0,.14); max-height: min(42vh, 320px); overflow: auto; overscroll-behavior: contain; }
-.money-flow-detail-drawer-peek { width: min(360px, calc(100% - 24px)); gap: 0; padding: 8px 12px; border-radius: 20px; box-shadow: 0 12px 28px rgba(0,0,0,.12); }
-.money-flow-drawer-toggle { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; display: grid; gap: 8px; }
-.money-flow-drawer-toggle-inline { justify-items: center; gap: 6px; }
-.money-flow-drawer-toggle-peek { gap: 8px; }
-.money-flow-drawer-handle { width: 46px; height: 4px; border-radius: 999px; background: var(--money-flow-control-border); justify-self: center; }
-.money-flow-drawer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.money-flow-drawer-summary { min-width: 0; display: grid; gap: 2px; }
-.money-flow-drawer-title { font-size: 13px; font-weight: 800; color: var(--money-flow-control-text); }
-.money-flow-drawer-meta { font-size: 11px; color: var(--text2); line-height: 1.4; }
+.money-flow-detail-tray { position: absolute; display: grid; gap: 12px; padding: 14px 16px; border-radius: 22px; border: 1px solid var(--money-flow-control-border); background: var(--money-flow-control-bg); color: var(--money-flow-control-text); box-shadow: 0 18px 44px rgba(0,0,0,.16); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: auto; }
+.money-flow-side-drawer { top: 50%; right: 12px; left: auto; bottom: auto; transform: translateY(-50%); }
+.money-flow-side-drawer-open { width: min(320px, calc(100% - 48px)); max-width: calc(100% - 48px); max-height: min(70vh, 540px); padding: 14px 14px 14px 18px; overflow: auto; overscroll-behavior: contain; box-shadow: 0 16px 38px rgba(0,0,0,.14); }
+.money-flow-side-drawer-peek { width: auto; padding: 0; border: none; background: transparent; box-shadow: none; }
+.money-flow-side-drawer-panel { display: grid; gap: 12px; }
+.money-flow-side-drawer-tab { border: 1px solid var(--money-flow-control-border); background: var(--money-flow-control-bg); color: var(--money-flow-control-text); border-radius: 18px; box-shadow: 0 12px 28px rgba(0,0,0,.12); display: grid; justify-items: center; align-content: center; gap: 10px; cursor: pointer; transition: var(--transition); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.money-flow-side-drawer-tab:hover { transform: translateX(-2px); }
+.money-flow-side-drawer-tab.is-peek { width: 54px; min-height: 168px; padding: 12px 8px; }
+.money-flow-side-drawer-tab.is-open { position: absolute; top: 18px; left: -26px; width: 32px; min-height: 88px; padding: 10px 6px; border-radius: 16px 0 0 16px; }
+.money-flow-side-drawer-arrow { font-size: 22px; font-weight: 800; line-height: 1; }
+.money-flow-side-drawer-label { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+.money-flow-side-drawer-meta { font-size: 10px; font-weight: 700; color: var(--text2); writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
 .money-flow-detail-tray-compact { gap: 8px; padding: 10px 14px; border-radius: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 .money-flow-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .money-flow-detail-kicker { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); }
@@ -388,6 +392,10 @@
 .money-flow-detail-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--money-flow-control-active-bg); border: 1px solid var(--money-flow-control-active-border); color: var(--money-flow-control-active-text); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .money-flow-detail-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .money-flow-detail-stat { padding: 12px 14px; border-radius: 16px; border: 1px solid var(--money-flow-control-border); background: rgba(255,255,255,.18); display: grid; gap: 4px; }
+.money-flow-side-drawer-open .money-flow-detail-head { display: grid; gap: 8px; }
+.money-flow-side-drawer-open .money-flow-detail-pill { justify-self: start; }
+.money-flow-side-drawer-open .money-flow-detail-stats,
+.money-flow-side-drawer-open .money-flow-detail-stats-compact { grid-template-columns: 1fr; }
 .money-flow-detail-tray-compact .money-flow-detail-title { font-size: 13px; }
 .money-flow-detail-tray-compact .money-flow-detail-pill { min-height: 28px; padding: 0 10px; font-size: 10px; }
 .money-flow-detail-stats-compact { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
@@ -412,15 +420,12 @@
   .money-flow-overlay-btn { width: 38px; height: 38px; border-radius: 12px; font-size: 17px; }
   .money-flow-theme-btn { font-size: 15px; }
   .money-flow-filter-chip { height: 38px; padding: 0 12px; font-size: 11px; }
-  .money-flow-detail-tray { left: 10px; right: 10px; bottom: 10px; padding: 12px 14px; border-radius: 18px; }
-  .money-flow-detail-drawer { left: 50%; right: auto; width: min(340px, calc(100% - 18px)); max-width: calc(100% - 18px); }
-  .money-flow-detail-drawer-open { max-height: min(46vh, 300px); }
-  .money-flow-detail-drawer-peek { width: min(280px, calc(100% - 18px)); padding: 8px 11px; border-radius: 17px; }
+  .money-flow-detail-tray { padding: 12px 14px; border-radius: 18px; }
+  .money-flow-side-drawer { right: 10px; }
+  .money-flow-side-drawer-open { width: min(260px, calc(100% - 32px)); max-width: calc(100% - 32px); max-height: min(62vh, 420px); padding: 12px 12px 12px 16px; }
+  .money-flow-side-drawer-peek .money-flow-side-drawer-tab { width: 48px; min-height: 144px; padding: 10px 6px; border-radius: 16px; }
+  .money-flow-side-drawer-open .money-flow-side-drawer-tab.is-open { top: 14px; left: -22px; width: 28px; min-height: 74px; }
   .money-flow-detail-tray-compact { padding: 9px 12px; border-radius: 16px; }
-  .money-flow-detail-head { grid-template-columns: 1fr; }
-  .money-flow-detail-head,
-  .money-flow-drawer-row { display: grid; gap: 8px; }
-  .money-flow-detail-pill { justify-self: start; }
   .money-flow-detail-stats { grid-template-columns: 1fr; }
   .money-flow-detail-stats-compact { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
 }
