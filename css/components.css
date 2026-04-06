@@ -310,7 +310,11 @@
 .money-flow-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .money-flow-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text2); }
 .money-flow-pill strong { color: var(--text); }
+.money-flow-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.money-flow-expand-btn { white-space: nowrap; }
 .money-flow-chart { border: 1px solid var(--border); border-radius: 18px; background: linear-gradient(180deg, var(--surface2), rgba(255,255,255,0)); padding: 12px; }
+.money-flow-chart-preview { cursor: zoom-in; transition: var(--transition); }
+.money-flow-chart-preview:hover { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(129,140,248,.12); }
 .money-flow-svg { width: 100%; height: auto; display: block; }
 .money-flow-stage { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; fill: var(--text3); }
 .money-flow-node { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
@@ -319,11 +323,42 @@
 .money-flow-node-sub { font-size: 10px; fill: var(--text3); }
 .money-flow-link { fill: none; stroke-linecap: round; mix-blend-mode: multiply; }
 .money-flow-caption { font-size: 11px; color: var(--text3); line-height: 1.55; margin-top: 10px; }
+.money-flow-inline-link { color: var(--accent); font-weight: 700; }
+.money-flow-modal { z-index: 340; align-items: stretch; }
+.money-flow-modal-shell { width: min(1400px, 100vw); max-width: none; height: min(94vh, 920px); max-height: none; border-radius: 24px; padding: 20px 20px 18px; display: flex; flex-direction: column; overflow: hidden; }
+.money-flow-modal-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 18px; }
+.money-flow-modal-shell .modal-handle { flex-shrink: 0; margin-bottom: 12px; }
+#money-flow-fullscreen-content { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
+.money-flow-fullscreen-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.money-flow-fullscreen-head h3 { margin: 2px 0 0; font-size: 20px; }
+.money-flow-fullscreen-kicker { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
+.money-flow-fullscreen-sub { margin-top: 6px; font-size: 13px; color: var(--text2); line-height: 1.55; max-width: 560px; }
+.money-flow-fullscreen-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.money-flow-fullscreen-summary { margin-bottom: 0; }
+.money-flow-fullscreen-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.money-flow-fullscreen-hint { font-size: 12px; color: var(--text2); line-height: 1.5; }
+.money-flow-fullscreen-zoom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.money-flow-zoom-level { min-width: 58px; text-align: center; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 800; color: var(--text); }
+.money-flow-fullscreen-stage { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 22px; background: linear-gradient(180deg, var(--surface2), rgba(255,255,255,0)); touch-action: pan-x pan-y pinch-zoom; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.money-flow-fullscreen-stage-empty { display: flex; align-items: center; justify-content: center; min-height: 300px; }
+.money-flow-fullscreen-canvas { width: max-content; min-width: 100%; padding: 18px; }
+.money-flow-fullscreen-svg { display: block; width: 1480px; max-width: none; height: auto; }
+.money-flow-fullscreen-caption { margin-top: 0; }
 
 @media (max-width: 480px) {
+  .money-flow-head-actions { width: 100%; justify-content: space-between; }
   .money-flow-chart { padding: 10px; }
   .money-flow-node-label { font-size: 11px; }
   .money-flow-node-sub { font-size: 9px; }
+  .money-flow-fullscreen-head h3 { font-size: 18px; }
+  .money-flow-fullscreen-sub { font-size: 12px; }
+  .money-flow-fullscreen-toolbar { align-items: stretch; }
+  .money-flow-fullscreen-zoom { width: 100%; justify-content: space-between; }
+  .money-flow-fullscreen-canvas { padding: 14px; }
+}
+
+@media (max-width: 840px) {
+  .money-flow-modal-shell { width: 100%; height: 100%; border-radius: 0; padding: 16px; }
 }
 
 /* ── Goal & debt cards ── */

@@ -486,14 +486,47 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     accountsUsed:accounts.length
   };
 }
-function makeMoneyFlowSvg(data){
-  const width=960;
-  const height=470;
-  const nodeWidth=148;
-  const marginTop=54;
-  const marginBottom=18;
-  const gapY=18;
-  const minNodeHeight=22;
+const MONEY_FLOW_ZOOM_MIN=.75;
+const MONEY_FLOW_ZOOM_MAX=2.5;
+const MONEY_FLOW_ZOOM_STEP=.25;
+let moneyFlowZoom=1;
+function getMoneyFlowMonthLabel(monthKey=currentMonthKey()){
+  return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+}
+function getMoneyFlowSummaryMarkup(data){
+  if(!data||!data.hasActivity)return'';
+  const spendingOutflow=Math.max(Number(data.totalOutflow||0)-Number(data.savingsOutflow||0),0);
+  const summaryPills=[
+    `<div class="money-flow-pill">In <strong>${fmtShort(data.totalIncome)}</strong></div>`,
+    `<div class="money-flow-pill">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
+    `<div class="money-flow-pill">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
+    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?'':'s'}</div>`
+  ];
+  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill">Existing balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
+  return summaryPills.join('');
+}
+function getMoneyFlowCaption(data){
+  return data&&data.existingBalanceUsed>0?'Smaller categories are grouped into Other. Existing Balance appears when an account sent out more than this month’s recorded income.':'Smaller categories are grouped into Other. The chart uses current-month income, account, spending, and savings activity.';
+}
+function makeMoneyFlowSvg(data,opts={}){
+  const width=opts.width||960;
+  const height=opts.height||470;
+  const nodeWidth=opts.nodeWidth||148;
+  const marginTop=opts.marginTop||54;
+  const marginBottom=opts.marginBottom||18;
+  const gapY=opts.gapY||18;
+  const minNodeHeight=opts.minNodeHeight||22;
+  const stageLabelY=opts.stageLabelY||22;
+  const nodeRadius=opts.nodeRadius||18;
+  const accentWidth=opts.accentWidth||7;
+  const labelX=opts.labelX||14;
+  const labelY=opts.labelY||17;
+  const subLabelY=opts.subLabelY||34;
+  const labelMaxCategory=opts.labelMaxCategory||17;
+  const labelMaxDefault=opts.labelMaxDefault||18;
+  const svgClass=opts.svgClass||'money-flow-svg';
+  const ariaLabel=opts.ariaLabel||'Money flow Sankey diagram for the current month';
+  const svgIdAttr=opts.svgId?` id="${opts.svgId}"`:'';
   const columns=[data.sources,data.accounts,data.categories];
   const maxNodes=Math.max(...columns.map(column=>column.length),1);
   const maxTotal=Math.max(...columns.map(column=>column.reduce((sum,node)=>sum+Number(node.total||0),0)),1);
@@ -531,31 +564,87 @@ function makeMoneyFlowSvg(data){
 
   const stageLabels=[{x:xPositions[0]+nodeWidth/2,label:'Income'},{x:xPositions[1]+nodeWidth/2,label:'Accounts'},{x:xPositions[2]+nodeWidth/2,label:'Outflows'}];
   const nodes=[...data.sources,...data.accounts,...data.categories].map(node=>{
-    const label=`${node.icon?`${node.icon} `:''}${truncateMoneyFlowLabel(node.label,node.id.startsWith('category:')?17:18)}`;
-    const amountLine=node.height>=38?`<text class="money-flow-node-sub" x="${node.x+14}" y="${node.y+34}">${esc(fmtShort(node.total))}</text>`:'';
-    return`<g><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="18"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="7" height="${node.height}" rx="18" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+14}" y="${node.y+17}">${esc(label)}</text>${amountLine}</g>`;
+    const label=`${node.icon?`${node.icon} `:''}${truncateMoneyFlowLabel(node.label,node.id.startsWith('category:')?labelMaxCategory:labelMaxDefault)}`;
+    const amountLine=node.height>=Math.max(38,subLabelY+4)?`<text class="money-flow-node-sub" x="${node.x+labelX}" y="${node.y+subLabelY}">${esc(fmtShort(node.total))}</text>`:'';
+    return`<g><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
   }).join('');
-  return`<svg class="money-flow-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Money flow Sankey diagram for the current month"><g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="22" text-anchor="middle">${stage.label}</text>`).join('')}</g><g>${paths}</g><g>${nodes}</g></svg>`;
+  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}"><g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text>`).join('')}</g><g>${paths}</g><g>${nodes}</g></svg>`;
+}
+function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
+  const svg=document.getElementById('money-flow-fullscreen-svg');
+  if(!svg)return;
+  moneyFlowZoom=Math.min(MONEY_FLOW_ZOOM_MAX,Math.max(MONEY_FLOW_ZOOM_MIN,Number(nextZoom)||1));
+  const baseWidth=Number(svg.getAttribute('data-base-width')||1440);
+  svg.style.width=`${Math.round(baseWidth*moneyFlowZoom)}px`;
+  const zoomLabel=document.getElementById('money-flow-zoom-level');
+  if(zoomLabel)zoomLabel.textContent=`${Math.round(moneyFlowZoom*100)}%`;
+  const zoomOutBtn=document.getElementById('money-flow-zoom-out');
+  const zoomInBtn=document.getElementById('money-flow-zoom-in');
+  if(zoomOutBtn)zoomOutBtn.disabled=moneyFlowZoom<=MONEY_FLOW_ZOOM_MIN+.001;
+  if(zoomInBtn)zoomInBtn.disabled=moneyFlowZoom>=MONEY_FLOW_ZOOM_MAX-.001;
+}
+function stepMoneyFlowZoom(direction){
+  applyMoneyFlowZoom(moneyFlowZoom+(direction*MONEY_FLOW_ZOOM_STEP));
+}
+function resetMoneyFlowZoom(){
+  applyMoneyFlowZoom(1);
+}
+function unlockMoneyFlowOrientation(){
+  try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}
+}
+function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData()){
+  const mount=document.getElementById('money-flow-fullscreen-content');
+  if(!mount)return;
+  const monthLabel=getMoneyFlowMonthLabel(data.monthKey||currentMonthKey());
+  const closeButton=`<button class="btn btn-ghost btn-sm" type="button" onclick="closeMoneyFlowFullscreen()">Close</button>`;
+  if(!data.hasActivity){
+    mount.innerHTML=`<div class="money-flow-fullscreen-head"><div><div class="money-flow-fullscreen-kicker">Money Flow This Month</div><h3>Money Flow This Month</h3><div class="money-flow-fullscreen-sub">Expanded view for the current month.</div></div><div class="money-flow-fullscreen-head-actions"><span class="card-badge">${monthLabel}</span>${closeButton}</div></div><div class="money-flow-meta">A live view of how money is moving through your current month.</div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div>`;
+    return;
+  }
+  const hint=(window.innerHeight>window.innerWidth?'Landscape will be requested automatically. ':'')+'Use + or - to zoom and drag the chart to inspect details.';
+  mount.innerHTML=`<div class="money-flow-fullscreen-head"><div><div class="money-flow-fullscreen-kicker">Money Flow This Month</div><h3>Money Flow This Month</h3><div class="money-flow-fullscreen-sub">Expanded current-month Sankey view for a closer read.</div></div><div class="money-flow-fullscreen-head-actions"><span class="card-badge">${monthLabel}</span>${closeButton}</div></div><div class="money-flow-summary money-flow-fullscreen-summary">${getMoneyFlowSummaryMarkup(data)}</div><div class="money-flow-fullscreen-toolbar"><div class="money-flow-fullscreen-hint">${hint}</div><div class="money-flow-fullscreen-zoom"><button class="btn btn-ghost btn-sm" id="money-flow-zoom-out" type="button" onclick="stepMoneyFlowZoom(-1)">−</button><div class="money-flow-zoom-level" id="money-flow-zoom-level">100%</div><button class="btn btn-ghost btn-sm" id="money-flow-zoom-in" type="button" onclick="stepMoneyFlowZoom(1)">+</button><button class="btn btn-ghost btn-sm" type="button" onclick="resetMoneyFlowZoom()">Reset</button></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1480,height:820,nodeWidth:220,marginTop:78,marginBottom:30,gapY:24,minNodeHeight:28,labelMaxCategory:28,labelMaxDefault:26,stageLabelY:28,labelY:22,subLabelY:42,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month'})}</div></div><div class="money-flow-caption money-flow-fullscreen-caption">${getMoneyFlowCaption(data)}</div>`;
+  applyMoneyFlowZoom(moneyFlowZoom);
+}
+function syncMoneyFlowFullscreen(data=buildMoneyFlowData()){
+  const modal=document.getElementById('modal-money-flow');
+  if(!modal||!modal.classList.contains('show'))return;
+  renderMoneyFlowFullscreenContent(data);
+}
+async function openMoneyFlowFullscreen(){
+  const modal=document.getElementById('modal-money-flow');
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  if(!modal||!shell)return;
+  moneyFlowZoom=1;
+  renderMoneyFlowFullscreenContent(buildMoneyFlowData());
+  openModal('modal-money-flow');
+  if(document.fullscreenElement!==shell&&shell.requestFullscreen){
+    try{await shell.requestFullscreen({navigationUI:'hide'})}catch(e){}
+  }
+  try{if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock('landscape')}catch(e){}
+}
+async function closeMoneyFlowFullscreen(){
+  const modal=document.getElementById('modal-money-flow');
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  if(!modal)return;
+  if(document.fullscreenElement===shell){
+    try{await document.exitFullscreen()}catch(e){}
+  }
+  unlockMoneyFlowOrientation();
+  closeModal('modal-money-flow');
 }
 function renderMoneyFlowCard(){
   const mount=document.getElementById('money-flow-card');
   if(!mount)return;
   const data=buildMoneyFlowData();
-  const monthLabel=new Date(`${data.monthKey||currentMonthKey()}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+  const monthLabel=getMoneyFlowMonthLabel(data.monthKey||currentMonthKey());
+  const headerActions=`<div class="money-flow-head-actions"><button class="btn btn-sm btn-ghost money-flow-expand-btn" type="button" onclick="openMoneyFlowFullscreen()">Fullscreen</button><span class="card-badge">${monthLabel}</span></div>`;
   if(!data.hasActivity){
     mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Follow how income moves through accounts into this month’s categories.</div>':''}<div class="money-flow-meta">A live view of how money is moving through your current month.</div><div id="money-flow-chart" class="money-flow-chart"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
+    syncMoneyFlowFullscreen(data);
     return;
   }
-  const spendingOutflow=Math.max(data.totalOutflow-data.savingsOutflow,0);
-  const summaryPills=[
-    `<div class="money-flow-pill">In <strong>${fmtShort(data.totalIncome)}</strong></div>`,
-    `<div class="money-flow-pill">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
-    `<div class="money-flow-pill">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
-    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?'':'s'}</div>`
-  ];
-  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill">Existing balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
-  const caption=data.existingBalanceUsed>0?'Smaller categories are grouped into Other. Existing Balance appears when an account sent out more than this month’s recorded income.':'Smaller categories are grouped into Other. The chart uses current-month income, account, spending, and savings activity.';
-  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Tracks this month’s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">Current-month cash movement from income sources into accounts, then into your biggest spending and savings categories.</div><div class="money-flow-summary">${summaryPills.join('')}</div><div id="money-flow-chart" class="money-flow-chart">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${caption}</div></div>`;
+  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span>${headerActions}</div>${helpMode?'<div class="help-inline">Tracks this month’s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">Current-month cash movement from income sources into accounts, then into your biggest spending and savings categories.</div><div class="money-flow-summary">${getMoneyFlowSummaryMarkup(data)}</div><div id="money-flow-chart" class="money-flow-chart money-flow-chart-preview" onclick="openMoneyFlowFullscreen()" title="Open fullscreen money flow view">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${getMoneyFlowCaption(data)} <span class="money-flow-inline-link">Tap the chart or use Fullscreen for a closer view.</span></div></div>`;
+  syncMoneyFlowFullscreen(data);
 }
 
 
@@ -1900,6 +1989,7 @@ setTooltipContent('tip-recent','recent');
 maybeStartOnboarding();
 setTimeout(()=>{ if(localStorage.getItem('ft_onboarded')==='1' && !document.getElementById('onboard-overlay').classList.contains('show') && shouldStartTutorial()) startTutorial(); }, 500);
 document.addEventListener('click',function(e){const wrap=e.target.closest('.notif-wrap');const panel=document.getElementById('notif-panel');if(!wrap&&panel)panel.classList.remove('show')});
+document.addEventListener('fullscreenchange',function(){const shell=document.getElementById('money-flow-fullscreen-shell');if(document.fullscreenElement!==shell)unlockMoneyFlowOrientation()});
 
 window.addEventListener('DOMContentLoaded',()=>{
   try{ renderCashflowNotification(); }catch(e){}
