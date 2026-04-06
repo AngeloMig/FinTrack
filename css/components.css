@@ -324,9 +324,13 @@
 .money-flow-link { fill: none; stroke-linecap: round; mix-blend-mode: multiply; }
 .money-flow-caption { font-size: 11px; color: var(--text3); line-height: 1.55; margin-top: 10px; }
 .money-flow-inline-link { color: var(--accent); font-weight: 700; }
-.money-flow-modal { z-index: 340; align-items: center; justify-content: center; background: rgba(2,6,23,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.money-flow-modal-shell { position: relative; width: min(1600px, calc(100vw - 24px)); height: min(calc(100vh - 24px), 960px); max-width: none; max-height: none; border-radius: 24px; padding: 12px; display: flex; flex-direction: column; overflow: hidden; background: rgba(8,15,31,.66); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 64px rgba(0,0,0,.42); }
-.money-flow-modal-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 12px; border: none; background: rgba(2,6,23,.92); }
+.money-flow-modal { z-index: 340; align-items: center; justify-content: center; background: rgba(15,23,42,.2); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.dark .money-flow-modal { background: rgba(2,6,23,.76); }
+.money-flow-modal-shell { --money-flow-shell-bg: rgba(255,255,255,.82); --money-flow-shell-border: rgba(148,163,184,.26); --money-flow-stage-bg: linear-gradient(180deg, rgba(255,255,255,.9), rgba(241,245,249,.92)); --money-flow-stage-border: rgba(148,163,184,.22); --money-flow-stage-shadow: inset 0 1px 0 rgba(255,255,255,.82); --money-flow-control-bg: rgba(255,255,255,.84); --money-flow-control-border: rgba(148,163,184,.3); --money-flow-control-text: #0f172a; --money-flow-control-active-bg: rgba(99,102,241,.12); --money-flow-control-active-border: rgba(99,102,241,.55); --money-flow-control-active-text: #4f46e5; position: relative; width: min(1600px, calc(100vw - 24px)); height: min(calc(100vh - 24px), 960px); max-width: none; max-height: none; border-radius: 24px; padding: 12px; display: flex; flex-direction: column; overflow: hidden; background: var(--money-flow-shell-bg); border: 1px solid var(--money-flow-shell-border); box-shadow: 0 24px 64px rgba(0,0,0,.24); }
+.money-flow-modal-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 12px; border: none; }
+.dark .money-flow-modal-shell,
+.money-flow-modal-shell.money-flow-theme-dark { --bg: #0c0f1a; --surface: #161b2e; --surface2: #1e2540; --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b; --border: #2a3150; --accent: #818cf8; --accent-soft: #1e1b4b; --money-flow-shell-bg: rgba(8,15,31,.78); --money-flow-shell-border: rgba(148,163,184,.16); --money-flow-stage-bg: linear-gradient(180deg, rgba(22,27,46,.96), rgba(14,18,33,.96)); --money-flow-stage-border: rgba(148,163,184,.12); --money-flow-stage-shadow: inset 0 1px 0 rgba(255,255,255,.04); --money-flow-control-bg: rgba(15,23,42,.82); --money-flow-control-border: rgba(148,163,184,.18); --money-flow-control-text: #f8fafc; --money-flow-control-active-bg: rgba(129,140,248,.18); --money-flow-control-active-border: rgba(129,140,248,.58); --money-flow-control-active-text: #c7d2fe; }
+.money-flow-modal-shell.money-flow-theme-light { --bg: #f8fafc; --surface: #ffffff; --surface2: #f1f5f9; --text: #0f172a; --text2: #475569; --text3: #94a3b8; --border: #dbe4ef; --accent: #6366f1; --accent-soft: #eef2ff; --money-flow-shell-bg: rgba(255,255,255,.82); --money-flow-shell-border: rgba(148,163,184,.26); --money-flow-stage-bg: linear-gradient(180deg, rgba(255,255,255,.94), rgba(241,245,249,.94)); --money-flow-stage-border: rgba(148,163,184,.22); --money-flow-stage-shadow: inset 0 1px 0 rgba(255,255,255,.82); --money-flow-control-bg: rgba(255,255,255,.84); --money-flow-control-border: rgba(148,163,184,.3); --money-flow-control-text: #0f172a; --money-flow-control-active-bg: rgba(99,102,241,.12); --money-flow-control-active-border: rgba(99,102,241,.55); --money-flow-control-active-text: #4f46e5; }
 .money-flow-modal-shell .modal-handle { display: none; }
 .money-flow-modal-shell.money-flow-force-rotate { position: fixed; top: 50%; left: 50%; width: 100vh; height: 100vw; max-width: none; max-height: none; padding: 10px; border-radius: 0; transform: translate(-50%, -50%) rotate(90deg); transform-origin: center center; }
 .money-flow-modal-shell.money-flow-force-rotate:fullscreen { width: 100vh; height: 100vw; }
@@ -335,13 +339,19 @@
 .money-flow-fullscreen-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .money-flow-fullscreen-controls { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; pointer-events: auto; }
 .money-flow-fullscreen-close { position: absolute; top: 10px; right: 10px; pointer-events: auto; }
-.money-flow-overlay-btn { width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(15,23,42,.78); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.28); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: var(--transition); }
-.money-flow-overlay-btn:hover:not(:disabled) { background: rgba(30,41,59,.88); }
+.money-flow-overlay-btn { width: 42px; height: 42px; border: 1px solid var(--money-flow-control-border); border-radius: 14px; background: var(--money-flow-control-bg); color: var(--money-flow-control-text); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.16); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: var(--transition); }
+.money-flow-overlay-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .money-flow-overlay-btn:disabled { opacity: .38; cursor: default; box-shadow: none; }
-.money-flow-fullscreen-stage { flex: none; overflow: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); touch-action: pan-x pan-y pinch-zoom; -webkit-overflow-scrolling: touch; scrollbar-width: thin; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.money-flow-overlay-btn.active { background: var(--money-flow-control-active-bg); border-color: var(--money-flow-control-active-border); color: var(--money-flow-control-active-text); }
+.money-flow-theme-btn { font-size: 16px; }
+.money-flow-fullscreen-stage { flex: none; overflow: auto; border: 1px solid var(--money-flow-stage-border); border-radius: 24px; background: var(--money-flow-stage-bg); touch-action: none; -webkit-overflow-scrolling: touch; scrollbar-width: thin; box-shadow: var(--money-flow-stage-shadow); overscroll-behavior: contain; cursor: grab; }
+.money-flow-fullscreen-stage.is-dragging { cursor: grabbing; }
 .money-flow-fullscreen-stage-empty { display: flex; align-items: center; justify-content: center; }
 .money-flow-fullscreen-canvas { width: max-content; min-width: 100%; min-height: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; }
 .money-flow-fullscreen-svg { display: block; width: 1600px; max-width: none; height: auto; }
+.money-flow-fullscreen-stage .money-flow-link { mix-blend-mode: normal; opacity: .92; }
+.money-flow-modal-shell.money-flow-theme-dark .money-flow-fullscreen-stage .money-flow-link,
+.dark .money-flow-modal-shell .money-flow-fullscreen-stage .money-flow-link { filter: saturate(1.32) brightness(1.16); }
 
 @media (max-width: 480px) {
   .money-flow-head-actions { width: 100%; justify-content: space-between; }
@@ -350,6 +360,7 @@
   .money-flow-node-sub { font-size: 9px; }
   .money-flow-fullscreen-canvas { padding: 12px; }
   .money-flow-overlay-btn { width: 38px; height: 38px; border-radius: 12px; font-size: 17px; }
+  .money-flow-theme-btn { font-size: 15px; }
 }
 
 @media (max-width: 900px) {

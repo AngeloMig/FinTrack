@@ -7,6 +7,7 @@ normalizePaySchedule();
 const now=new Date();
 const toLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const todayStr=toLocal(now);
+let moneyFlowViewerTheme=localStorage.getItem('ft_money_flow_theme')||'auto';
 let filterMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 const fmt=n=>"₱"+Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtShort=n=>{n=Number(n||0);if(Math.abs(n)>=1e6)return"₱"+(n/1e6).toFixed(1)+"M";if(Math.abs(n)>=1e3)return"₱"+Math.round(n/1e3)+"K";return"₱"+Math.round(n).toLocaleString()};
@@ -19,7 +20,7 @@ function allCats(){return[...CATS,...customCats]}
 function getCatInfo(name){return allCats().find(c=>c.name===name)||{icon:'📦',colorClass:'cat-default'}}
 function getWeek(d){const s=new Date(d.getFullYear(),d.getMonth(),1);return Math.ceil(((d-s)/864e5+s.getDay()+1)/7)}
 
-function applyDark(){document.body.classList.toggle('dark',darkMode);document.getElementById('dark-toggle').textContent=darkMode?'☀️':'🌙'}
+function applyDark(){document.body.classList.toggle('dark',darkMode);document.getElementById('dark-toggle').textContent=darkMode?'☀️':'🌙';applyMoneyFlowViewerTheme()}
 function toggleDark(){darkMode=!darkMode;applyDark();saveData()}
 applyDark();
 
@@ -490,6 +491,34 @@ const MONEY_FLOW_ZOOM_MIN=.75;
 const MONEY_FLOW_ZOOM_MAX=2.5;
 const MONEY_FLOW_ZOOM_STEP=.25;
 let moneyFlowZoom=1;
+let moneyFlowStageGestureState=null;
+function getMoneyFlowEffectiveTheme(){
+  return moneyFlowViewerTheme==='dark'||moneyFlowViewerTheme==='light'?moneyFlowViewerTheme:(darkMode?'dark':'light');
+}
+function applyMoneyFlowViewerTheme(){
+  const shell=document.getElementById('money-flow-fullscreen-shell');
+  const effectiveTheme=getMoneyFlowEffectiveTheme();
+  if(shell){
+    shell.classList.remove('money-flow-theme-light','money-flow-theme-dark');
+    shell.classList.add(effectiveTheme==='dark'?'money-flow-theme-dark':'money-flow-theme-light');
+  }
+  const lightBtn=document.getElementById('money-flow-theme-light');
+  const darkBtn=document.getElementById('money-flow-theme-dark');
+  if(lightBtn){
+    lightBtn.classList.toggle('active',effectiveTheme==='light');
+    lightBtn.setAttribute('aria-pressed',effectiveTheme==='light'?'true':'false');
+  }
+  if(darkBtn){
+    darkBtn.classList.toggle('active',effectiveTheme==='dark');
+    darkBtn.setAttribute('aria-pressed',effectiveTheme==='dark'?'true':'false');
+  }
+}
+function setMoneyFlowViewerTheme(theme){
+  const nextTheme=theme==='dark'?'dark':theme==='light'?'light':'auto';
+  moneyFlowViewerTheme=moneyFlowViewerTheme===nextTheme?'auto':nextTheme;
+  localStorage.setItem('ft_money_flow_theme',moneyFlowViewerTheme);
+  applyMoneyFlowViewerTheme();
+}
 function getMoneyFlowMonthLabel(monthKey=currentMonthKey()){
   return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short',year:'numeric'});
 }
@@ -583,8 +612,24 @@ function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   if(zoomInBtn)zoomInBtn.disabled=moneyFlowZoom>=MONEY_FLOW_ZOOM_MAX-.001;
   if(zoomResetBtn)zoomResetBtn.disabled=Math.abs(moneyFlowZoom-1)<.001;
 }
+function zoomMoneyFlowAroundPoint(nextZoom,clientX,clientY){
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  const svg=document.getElementById('money-flow-fullscreen-svg');
+  if(!stage||!svg)return;
+  const prevZoom=Math.max(Number(moneyFlowZoom||1),.01);
+  const rect=stage.getBoundingClientRect();
+  const focusX=(clientX-rect.left)+stage.scrollLeft;
+  const focusY=(clientY-rect.top)+stage.scrollTop;
+  applyMoneyFlowZoom(nextZoom);
+  const ratio=moneyFlowZoom/prevZoom;
+  stage.scrollLeft=(focusX*ratio)-(clientX-rect.left);
+  stage.scrollTop=(focusY*ratio)-(clientY-rect.top);
+}
 function stepMoneyFlowZoom(direction){
-  applyMoneyFlowZoom(moneyFlowZoom+(direction*MONEY_FLOW_ZOOM_STEP));
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  if(!stage)return applyMoneyFlowZoom(moneyFlowZoom+(direction*MONEY_FLOW_ZOOM_STEP));
+  const rect=stage.getBoundingClientRect();
+  zoomMoneyFlowAroundPoint(moneyFlowZoom+(direction*MONEY_FLOW_ZOOM_STEP),rect.left+(rect.width/2),rect.top+(rect.height/2));
 }
 function resetMoneyFlowZoom(){
   applyMoneyFlowZoom(1);
@@ -619,16 +664,90 @@ function syncMoneyFlowOrientationState(){
   shell.classList.toggle('money-flow-force-rotate',shouldRotateMoneyFlowFallback());
   requestAnimationFrame(fitMoneyFlowStage);
 }
+function getMoneyFlowPointerDistance(a,b){
+  return Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
+}
+function getMoneyFlowPointerCenter(a,b){
+  return{x:((a.x||0)+(b.x||0))/2,y:((a.y||0)+(b.y||0))/2};
+}
+function setupMoneyFlowStageGestures(){
+  const stage=document.getElementById('money-flow-fullscreen-stage');
+  if(!stage||stage.dataset.gesturesBound==='1')return;
+  const state={pointers:new Map(),panPointerId:null,panStartX:0,panStartY:0,panScrollLeft:0,panScrollTop:0,pinchDistance:0,pinchZoom:1};
+  const refreshSinglePanState=()=>{
+    if(state.pointers.size!==1){
+      state.panPointerId=null;
+      return;
+    }
+    const [pointerId,pointer]=[...state.pointers.entries()][0];
+    state.panPointerId=pointerId;
+    state.panStartX=pointer.x;
+    state.panStartY=pointer.y;
+    state.panScrollLeft=stage.scrollLeft;
+    state.panScrollTop=stage.scrollTop;
+  };
+  const handlePointerEnd=e=>{
+    state.pointers.delete(e.pointerId);
+    if(state.pointers.size<2){
+      state.pinchDistance=0;
+      state.pinchZoom=moneyFlowZoom;
+    }
+    refreshSinglePanState();
+    stage.classList.toggle('is-dragging',state.pointers.size===1);
+  };
+  stage.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(stage.setPointerCapture)stage.setPointerCapture(e.pointerId);
+    if(state.pointers.size===1){
+      refreshSinglePanState();
+      stage.classList.add('is-dragging');
+    }else if(state.pointers.size===2){
+      const [first,second]=[...state.pointers.values()];
+      state.pinchDistance=getMoneyFlowPointerDistance(first,second)||1;
+      state.pinchZoom=moneyFlowZoom;
+      stage.classList.remove('is-dragging');
+    }
+  });
+  stage.addEventListener('pointermove',e=>{
+    if(!state.pointers.has(e.pointerId))return;
+    state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(state.pointers.size>=2){
+      const [first,second]=[...state.pointers.values()];
+      const nextDistance=getMoneyFlowPointerDistance(first,second)||1;
+      const center=getMoneyFlowPointerCenter(first,second);
+      e.preventDefault();
+      if(state.pinchDistance>0){
+        zoomMoneyFlowAroundPoint(state.pinchZoom*(nextDistance/state.pinchDistance),center.x,center.y);
+      }
+      return;
+    }
+    if(state.panPointerId!==e.pointerId)return;
+    e.preventDefault();
+    const dx=e.clientX-state.panStartX;
+    const dy=e.clientY-state.panStartY;
+    stage.scrollLeft=state.panScrollLeft-dx;
+    stage.scrollTop=state.panScrollTop-dy;
+  },{passive:false});
+  stage.addEventListener('pointerup',handlePointerEnd);
+  stage.addEventListener('pointercancel',handlePointerEnd);
+  stage.addEventListener('lostpointercapture',handlePointerEnd);
+  stage.dataset.gesturesBound='1';
+  moneyFlowStageGestureState=state;
+}
 function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData()){
   const mount=document.getElementById('money-flow-fullscreen-content');
   if(!mount)return;
   if(!data.hasActivity){
     mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage money-flow-fullscreen-stage-empty" id="money-flow-fullscreen-stage"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
+    applyMoneyFlowViewerTheme();
     syncMoneyFlowOrientationState();
     return;
   }
-  mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">-</button><button class="money-flow-overlay-btn" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">1x</button><button class="money-flow-overlay-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button></div><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month'})}</div></div></div>`;
+  mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">-</button><button class="money-flow-overlay-btn" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">1x</button><button class="money-flow-overlay-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-light" type="button" aria-label="Use light mode" title="Light mode" onclick="setMoneyFlowViewerTheme('light')">☀</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-dark" type="button" aria-label="Use dark mode" title="Dark mode" onclick="setMoneyFlowViewerTheme('dark')">🌙</button></div><div class="money-flow-fullscreen-close"><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month'})}</div></div></div>`;
   applyMoneyFlowZoom(moneyFlowZoom);
+  applyMoneyFlowViewerTheme();
+  setupMoneyFlowStageGestures();
   syncMoneyFlowOrientationState();
 }
 function syncMoneyFlowFullscreen(data=buildMoneyFlowData()){
