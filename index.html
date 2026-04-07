@@ -169,16 +169,42 @@
 
 <!-- HISTORY -->
 <div class="section" id="sec-history">
-  <div class="card" style="margin-bottom:12px">
-    <div class="card-header"><span class="card-title">Search & Filters <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-history')">i</button><span class="tooltip-pop" id="tip-history"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><span class="card-badge">History</span></div>
+  <div class="history-topbar">
+    <div class="history-topbar-copy">
+      <div class="card-title">History <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-history')">i</button><span class="tooltip-pop" id="tip-history"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></div>
+      <div class="history-topbar-sub" id="history-topbar-sub">Showing this month's activity. Open Search & Filters to refine the list.</div>
+    </div>
+    <button class="btn btn-ghost btn-sm history-filter-toggle" id="history-filter-toggle" onclick="openHistoryDrawer()"><span>Search & Filters</span><span class="history-filter-toggle-count" id="history-filter-count" style="display:none">0</span></button>
+  </div>
+  <div id="history-active-filters"></div>
+  <div class="history-drawer-scrim" id="history-drawer-scrim" onclick="if(event.target===this)closeHistoryDrawer()"></div>
+  <div class="card history-drawer" id="history-drawer" aria-hidden="true">
+    <div class="card-header history-drawer-head"><div><span class="card-title">Search & Filters</span><div class="history-drawer-sub">Refine History without pushing the stats off screen.</div></div><button class="btn-icon" type="button" onclick="closeHistoryDrawer()" aria-label="Close history filters">x</button></div>
     <div class="input-group" style="margin-bottom:12px"><label class="input-label">Search</label><input type="text" class="input" id="hist-search" placeholder="Search note, category, source, amount..." oninput="render()"></div>
+    <div class="input-row history-filter-top-row" style="margin-bottom:12px">
+      <div class="input-group history-category-group" style="margin:0"><label class="input-label">Category</label><div id="hist-filter-wrap"></div></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Month</label><input type="month" class="input history-picker-input" id="hist-month" onchange="handleHistoryMonthChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+    </div>
     <div class="input-row" style="margin-bottom:12px">
-      <div class="input-group" style="margin:0"><label class="input-label">Category</label><select class="input" id="hist-filter" onchange="render()"></select></div>
-      <div class="input-group" style="margin:0"><label class="input-label">Month</label><input type="month" class="input" id="hist-month" onchange="render()"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Specific Day</label><input type="date" class="input history-picker-input" id="hist-day" onchange="handleHistoryDayChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Week</label><input type="week" class="input history-picker-input" id="hist-week" onchange="handleHistoryWeekChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+    </div>
+    <div class="input-group" style="margin-bottom:12px">
+      <label class="input-label">Quick Range</label>
+      <div class="quick-actions history-quick-ranges" id="hist-quick-ranges"></div>
+      <input type="hidden" id="hist-quick-preset">
+    </div>
+    <div class="input-row" style="margin-bottom:12px">
+      <div class="input-group" style="margin:0"><label class="input-label">From</label><input type="date" class="input history-picker-input" id="hist-from" onchange="handleHistoryRangeChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">To</label><input type="date" class="input history-picker-input" id="hist-to" onchange="handleHistoryRangeChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
     </div>
     <div class="input-row" style="margin-bottom:12px">
       <div class="input-group" style="margin:0"><label class="input-label">Type</label><select class="input" id="hist-type" onchange="render()"><option value="all">All</option><option value="expense">Expenses</option><option value="income">Income</option></select></div>
       <div class="input-group" style="margin:0"><label class="input-label">Sort</label><select class="input" id="hist-sort" onchange="render()"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="highest">Highest Amount</option><option value="lowest">Lowest Amount</option></select></div>
+    </div>
+    <div class="input-row" style="margin-bottom:12px">
+      <div class="input-group" style="margin:0"><label class="input-label">Group By</label><select class="input" id="hist-group" onchange="render()"><option value="none">Transactions</option><option value="day">Day</option><option value="category">Category</option><option value="account">Account</option></select></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Preset Name</label><input type="text" class="input" id="hist-preset-name" placeholder="Bills this month"></div>
     </div>
     <div class="input-group" style="margin-bottom:12px"><label class="input-label">Account</label><select class="input" id="hist-account" onchange="render()"></select></div>
     <div class="input-row" style="margin-bottom:12px">
@@ -186,11 +212,14 @@
       <div class="input-group" style="margin:0"><label class="input-label">Max Amount (₱)</label><input type="number" class="input" id="hist-max" placeholder="Any" oninput="render()"></div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="saveHistoryPreset()">Save Preset</button>
       <button class="btn btn-ghost btn-sm" onclick="resetHistoryFilters()">Reset Filters</button>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">📥 CSV</button>
     </div>
+    <div id="hist-presets" class="history-drawer-presets"></div>
   </div>
   <div id="history-summary"></div>
+  <div id="history-bulk"></div>
   <div id="history-content"></div>
   <div class="card" style="margin-top:12px"><div class="card-header"><span class="card-title">Income History</span></div><div id="income-history"></div></div>
 </div>

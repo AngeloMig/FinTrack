@@ -1,4 +1,4 @@
-function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState}))}catch(e){}}
+function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState,historySavedPresets,nextHistoryPresetId}))}catch(e){}}
 function loadData(){
   try{
     const raw=localStorage.getItem('ft_all');
@@ -35,6 +35,8 @@ function loadData(){
       if(d.nextDebtPaymentId)nextDebtPaymentId=d.nextDebtPaymentId;
       if(d.goalContributions)goalContributions=d.goalContributions;
       if(d.nextGoalContributionId)nextGoalContributionId=d.nextGoalContributionId;
+      if(d.historySavedPresets)historySavedPresets=d.historySavedPresets;
+      if(d.nextHistoryPresetId)nextHistoryPresetId=d.nextHistoryPresetId;
       if(d.addFlowState)addFlowState={...addFlowState,...d.addFlowState,lastExpenseByCategory:{...(addFlowState.lastExpenseByCategory||{}),...((d.addFlowState&&d.addFlowState.lastExpenseByCategory)||{})},favoriteExpenseTemplates:(d.addFlowState&&d.addFlowState.favoriteExpenseTemplates)||addFlowState.favoriteExpenseTemplates,lastIncomeBySource:{...(addFlowState.lastIncomeBySource||{}),...((d.addFlowState&&d.addFlowState.lastIncomeBySource)||{})}};
       if(d.budgetStrategy){
         budgetStrategy={

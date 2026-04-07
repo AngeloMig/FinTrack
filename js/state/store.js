@@ -16,6 +16,9 @@ let greetingAutoSlideTimer=null;
 let debtPayoffSettings={method:'snowball'};
 let debtPayments=[],nextDebtPaymentId=1,activeDebtPaymentDebtId=null;
 let goalContributions=[],nextGoalContributionId=1,activeGoalContributionGoalId=null;
+let historySavedPresets=[],nextHistoryPresetId=1;
+let historyBulkMode=false,historySelectedKeys=new Set(),historyVisibleSelectionKeys=[],historyActivePresetId=null;
+let historyDrawerOpen=false;
 let budgetStrategy={
   preset:'balanced',
   needsPct:50,
