@@ -11,6 +11,7 @@ let moneyFlowViewerTheme=localStorage.getItem('ft_money_flow_theme')||'auto';
 let filterMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 const fmt=n=>"₱"+Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtShort=n=>{n=Number(n||0);if(Math.abs(n)>=1e6)return"₱"+(n/1e6).toFixed(1)+"M";if(Math.abs(n)>=1e3)return"₱"+Math.round(n/1e3)+"K";return"₱"+Math.round(n).toLocaleString()};
+const fmtBudget=n=>{const value=Number(n||0);return"₱"+value.toLocaleString("en-PH",{minimumFractionDigits:Number.isInteger(value)?0:2,maximumFractionDigits:2})};
 const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML};
 function currentTimeStr(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
 function stampRecord(obj){const d=new Date();return{...obj,time:obj.time||currentTimeStr(),createdAt:obj.createdAt||d.toISOString()}}
@@ -76,6 +77,14 @@ function toggleShowMore(){
   showMoreExpanded=!showMoreExpanded;
   document.getElementById('analytics-expanded').style.display=showMoreExpanded?'block':'none';
   document.getElementById('show-more-toggle').textContent=showMoreExpanded?'📊 Hide charts & analytics':'📊 Show charts & analytics';
+}
+
+function openAllBudgets(){
+  if(!showMoreExpanded)toggleShowMore();
+  requestAnimationFrame(()=>{
+    const card=document.getElementById('budget-bars-card');
+    if(card)card.scrollIntoView({behavior:'smooth',block:'start'});
+  });
 }
 
 function getCashflowTimelineMockData(){
@@ -245,10 +254,31 @@ function getMonthSpent(monthKey=filterMonth){
 function getMonthIncomeTotal(monthKey=filterMonth){
   return getMonthIncome(monthKey).reduce((sum,i)=>sum+Number(i.amount||0),0);
 }
+function isBudgetTrackedEntry(entry){
+  return !!entry&&!entry.isDebtPayment&&!entry.isGoalContribution&&entry.category!=='Transfer Fees';
+}
 function getMonthCategoryTotals(monthKey=filterMonth){
   const totals={};
-  getMonthEntries(monthKey).forEach(e=>{totals[e.category]=(totals[e.category]||0)+Number(e.amount||0)});
+  getMonthEntries(monthKey).filter(isBudgetTrackedEntry).forEach(e=>{
+    if(!e.category)return;
+    totals[e.category]=(totals[e.category]||0)+Number(e.amount||0);
+  });
   return totals;
+}
+function isBudgetOver(spent,budget){
+  return Number(budget||0)>0&&Math.round(Number(spent||0)*100)>Math.round(Number(budget||0)*100);
+}
+function getBudgetProgressItems(categories=allCats(),monthKey=filterMonth){
+  const totals=getMonthCategoryTotals(monthKey);
+  return categories.filter(c=>c.group!=='savings').map(c=>{
+    const spent=Number(totals[c.name]||0);
+    const budget=Number(budgets[c.name]||0);
+    const pct=budget>0?(spent/budget)*100:0;
+    return {...c,spent,budget,pct,over:isBudgetOver(spent,budget)};
+  });
+}
+function formatBudgetProgress(spent,budget){
+  return Number(budget||0)>0?`${fmtBudget(spent)} / ${fmtBudget(budget)}`:`${fmtBudget(spent)} spent`;
 }
 function getDaysLeftInShownMonth(){
   const base=new Date(filterMonth+'-01T00:00:00');
@@ -334,13 +364,8 @@ function renderAnalyticsInsights(){
 function renderBudgetFocus(){
   const wrap=document.getElementById('budget-focus');
   if(!wrap)return;
-  const totals=getMonthCategoryTotals();
-  const active=Object.entries(totals).map(([name,spent])=>{
-    const budget=Number(budgets[name]||0);
-    const pct=budget>0?(spent/budget)*100:0;
-    return {name,spent,budget,pct};
-  }).filter(x=>x.spent>0 || x.budget>0).sort((a,b)=>b.pct-a.pct || b.spent-a.spent);
-  const risky=active.filter(x=>x.pct>=70 || x.spent>0).slice(0,5);
+  const active=getBudgetProgressItems().filter(x=>x.spent>0||x.budget>0).sort((a,b)=>Number(b.over)-Number(a.over)||b.pct-a.pct||b.spent-a.spent);
+  const risky=active.filter(x=>x.over||x.pct>=70||x.spent>0).slice(0,5);
   if(!risky.length){
     wrap.innerHTML=`
       <div class="empty-analytics">
@@ -351,19 +376,20 @@ function renderBudgetFocus(){
     return;
   }
   wrap.innerHTML=`<div class="focus-list">${risky.map(x=>{
-    const tag = x.pct>=100 ? 'Over budget' : x.pct>=70 ? 'Near limit' : 'Active';
-    const tagClass = x.pct>=100 ? 'risk' : 'warn';
+    const tag = x.over ? 'Over budget' : x.pct>=70 ? 'Near limit' : 'Active';
+    const tagClass = x.over ? 'risk' : 'warn';
+    const meta=x.budget>0?`${formatBudgetProgress(x.spent,x.budget)} used`:`${fmtBudget(x.spent)} spent`;
     return `
       <div class="focus-item">
         <div class="focus-top">
           <div>
             <div class="focus-name">${x.name}</div>
-            <div class="focus-meta">${fmt(x.spent)} spent${x.budget>0?` of ${fmt(x.budget)}`:''}</div>
+            <div class="focus-meta">${meta}</div>
           </div>
           <span class="focus-tag ${tagClass}">${tag}</span>
         </div>
         <div class="progress">
-          <div class="progress-track"><div class="progress-fill" style="width:${Math.min(x.pct||0,100)}%;background:${x.pct>=100?'var(--red)':'var(--amber)'}"></div></div>
+          <div class="progress-track"><div class="progress-fill" style="width:${Math.min(x.pct||0,100)}%;background:${x.over?'var(--red)':'var(--amber)'}"></div></div>
         </div>
       </div>`;
   }).join('')}</div>`;
@@ -539,16 +565,27 @@ function getMoneyFlowSummaryMarkup(data){
   if(!data||!data.hasActivity)return'';
   const spendingOutflow=Math.max(Number(data.totalOutflow||0)-Number(data.savingsOutflow||0),0);
   const summaryPills=[
-    `<div class="money-flow-pill">In <strong>${fmtShort(data.totalIncome)}</strong></div>`,
-    `<div class="money-flow-pill">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
-    `<div class="money-flow-pill">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
-    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?'':'s'}</div>`
+    `<div class="money-flow-pill money-flow-pill-income">Income <strong>${fmtShort(data.totalIncome)}</strong></div>`,
+    `<div class="money-flow-pill money-flow-pill-spending">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
+    `<div class="money-flow-pill money-flow-pill-savings">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
+    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?"":"s"}</div>`
   ];
-  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill">Existing balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
-  return summaryPills.join('');
+  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill money-flow-pill-balance">Balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
+  return summaryPills.join("");
+}
+function getMoneyFlowInsight(data){
+  if(!data||!data.hasActivity)return "A live view of how money moves through your accounts this month.";
+  const total=Number(data.totalOutflow||0);
+  const savings=Number(data.savingsOutflow||0);
+  if(total<=0)return "Money is moving. Tap the chart to explore the full breakdown.";
+  const savePct=Math.round(savings/total*100);
+  const spendPct=100-savePct;
+  if(savePct>=20)return savePct+"% of your outflow went to savings this month. Strong discipline.";
+  if(savePct>0)return spendPct+"% spending, "+savePct+"% savings this month. Tap to explore the full breakdown.";
+  return "All outflow went to spending this month. Tap the chart to see where it went.";
 }
 function getMoneyFlowCaption(data){
-  return data&&data.existingBalanceUsed>0?'Smaller categories are grouped into Other. Existing Balance appears when an account sent out more than this month’s recorded income.':'Smaller categories are grouped into Other. The chart uses current-month income, account, spending, and savings activity.';
+  return data&&data.existingBalanceUsed>0?"Small categories grouped into Other. Existing Balance shown when an account spent more than its recorded income.":"Small categories grouped into Other.";
 }
 const MONEY_FLOW_FILTERS=[
   {key:'all',label:'All'},
@@ -807,7 +844,7 @@ function makeMoneyFlowSvg(data,opts={}){
   const minNodeHeight=opts.minNodeHeight||22;
   const stageLabelY=opts.stageLabelY||22;
   const nodeRadius=opts.nodeRadius||18;
-  const accentWidth=opts.accentWidth||7;
+  const accentWidth=opts.accentWidth||9;
   const labelX=opts.labelX||14;
   const labelY=opts.labelY||17;
   const subLabelY=opts.subLabelY||34;
@@ -832,7 +869,9 @@ function makeMoneyFlowSvg(data,opts={}){
   ].filter(rect=>rect.width>0);
 
   columns.forEach((column,columnIndex)=>{
-    let currentY=marginTop;
+    const totalH=column.reduce((s,n)=>s+Math.max(minNodeHeight,Number(n.total||0)*scale),0)+gapY*Math.max(column.length-1,0);
+    const avail=height-marginTop-marginBottom;
+    let currentY=marginTop+Math.max(0,Math.round((avail-totalH)/2));
     column.forEach(node=>{
       node.x=xPositions[columnIndex];
       node.y=currentY;
@@ -883,11 +922,11 @@ function makeMoneyFlowSvg(data,opts={}){
       }
     }
     const dataAttr=interactive?` data-node-id="${encodeURIComponent(node.id)}"`:'';
-    return`<g class="${nodeClasses.join(' ')}"${dataAttr}><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
+    return`<g class="${nodeClasses.join(' ')}"${dataAttr}><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-tint" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}" fill-opacity="0.07"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
   }).join('');
   const defs=linkClipRects.length?`<defs><clipPath id="${linkClipId}" clipPathUnits="userSpaceOnUse">${linkClipRects.map(rect=>`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>`).join('')}</clipPath></defs>`:'';
   const linkLayer=linkClipRects.length?`<g clip-path="url(#${linkClipId})">${paths}</g>`:`<g>${paths}</g>`;
-  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${defs}<g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text>`).join('')}</g>${linkLayer}<g>${nodes}</g></svg>`;
+  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${defs}<g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text><line class="money-flow-stage-line" x1="${stage.x-28}" y1="${stageLabelY+7}" x2="${stage.x+28}" y2="${stageLabelY+7}" stroke-linecap="round"></line>`).join('')}</g>${linkLayer}<g>${nodes}</g></svg>`;
 }
 function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   const svg=document.getElementById('money-flow-fullscreen-svg');
@@ -1304,11 +1343,11 @@ function renderMoneyFlowCard(){
   const monthLabel=getMoneyFlowMonthLabel(data.monthKey||currentMonthKey());
   const headerActions=`<div class="money-flow-head-actions"><button class="btn btn-sm btn-ghost money-flow-expand-btn" type="button" onclick="openMoneyFlowFullscreen()">Fullscreen</button><span class="card-badge">${monthLabel}</span></div>`;
   if(!data.hasActivity){
-    mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Follow how income moves through accounts into this month’s categories.</div>':''}<div class="money-flow-meta">A live view of how money is moving through your current month.</div><div id="money-flow-chart" class="money-flow-chart"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
+    mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span><span class="card-badge">${monthLabel}</span></div>${helpMode?'<div class="help-inline">Follow how income moves through accounts into this month\'s categories.</div>':''}<div class="money-flow-meta">A live view of how money is moving through your current month.</div><div id="money-flow-chart" class="money-flow-chart"><div class="empty"><div class="empty-icon">🌊</div><div class="empty-text">${esc(data.reason||'No money-flow activity recorded yet this month.')}</div></div></div></div>`;
     syncMoneyFlowFullscreen(data);
     return;
   }
-  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span>${headerActions}</div>${helpMode?'<div class="help-inline">Tracks this month’s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">Current-month cash movement from income sources into accounts, then into your biggest spending and savings categories.</div><div class="money-flow-summary">${getMoneyFlowSummaryMarkup(data)}</div><div id="money-flow-chart" class="money-flow-chart money-flow-chart-preview" onclick="openMoneyFlowFullscreen()" title="Open fullscreen money flow view">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${getMoneyFlowCaption(data)} <span class="money-flow-inline-link">Tap the chart or use Fullscreen for a closer view.</span></div></div>`;
+  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span>${headerActions}</div>${helpMode?'<div class="help-inline">Tracks this month\'s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">${getMoneyFlowInsight(data)}</div><div class="money-flow-summary">${getMoneyFlowSummaryMarkup(data)}</div><div id="money-flow-chart" class="money-flow-chart money-flow-chart-preview" onclick="openMoneyFlowFullscreen()" title="Open fullscreen money flow view">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${getMoneyFlowCaption(data)} <span class="money-flow-inline-link">Tap the chart or use Fullscreen for a closer view.</span></div></div>`;
   syncMoneyFlowFullscreen(data);
 }
 
@@ -1439,7 +1478,7 @@ function toggleBreakdown(type, chipEl){
   let html = '';
   if(type === 'carryover'){
     const carry=getCarryoverOverspend();
-    html = `<div class="safe-spend-detail-title">Previous month overspend</div><div class="safe-spend-detail-item">Last month went over your declared salary by <strong>${fmt(carry)}</strong>. That amount reduces this month’s available room.</div>`;
+    html = `<div class="safe-spend-detail-title">Previous month overspend</div><div class="safe-spend-detail-item">Last month went over your declared salary by <strong>${fmt(carry)}</strong>. That amount reduces this month's available room.</div>`;
   }
   if(type === 'bills'){
     const bills = (recurring||[])
@@ -1543,7 +1582,7 @@ function setAlertToggle(key,val){alertSettings[key]=val;saveData();render()}
 function setAlertThreshold(val){alertSettings.budgetThreshold=Math.min(100,Math.max(1,parseInt(val)||80));saveData();render()}
 
 /* Smart alerts */
-function getSmartAlerts(ac,catTotals,totalIncome,remaining,monthTotal,daysLeft){const alerts=[];const threshold=alertSettings.budgetThreshold||80;ac.filter(c=>c.group!=='savings'&&(budgets[c.name]||0)>0).forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=spent/budget*100;if(pct>=100)alerts.push({type:'critical',icon:'🚨',title:`${c.name} is over budget`,detail:`Spent ${fmtShort(spent)} of ${fmtShort(budget)} (${Math.round(pct)}%)`});else if(pct>=threshold)alerts.push({type:'warn',icon:'⚠️',title:`${c.name} is near limit`,detail:`Spent ${Math.round(pct)}% of budget · ${fmtShort(Math.max(budget-spent,0))} left`})});if(alertSettings.overspendForecast){const dayOfMonth=now.getDate();const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(dayOfMonth>=5&&dayOfMonth<daysInMonth){const projected=(monthTotal/dayOfMonth)*daysInMonth;if(projected>totalIncome)alerts.push({type:'critical',icon:'📉',title:'On track to overspend this month',detail:`Projected spend ${fmtShort(projected)} vs income ${fmtShort(totalIncome)}`});else if(projected>totalIncome*0.9)alerts.push({type:'warn',icon:'📅',title:'Month-end cash will be tight',detail:`Projected remaining ${fmtShort(totalIncome-projected)} if spending continues`})}}if(alertSettings.lowBalanceAlerts){if(remaining<0)alerts.push({type:'critical',icon:'🧯',title:'You are in the red',detail:`Current remaining balance is ${fmtShort(remaining)}`});else if(daysLeft>0&&remaining/Math.max(daysLeft,1)<200)alerts.push({type:'warn',icon:'💸',title:'Daily budget is very low',detail:`Only ${fmtShort(remaining/Math.max(daysLeft,1))} per day left this month`})}if(alertSettings.recurringDueSoon){recurring.forEach(r=>{const s=recurringStatus(r);if(s.state==='due')alerts.push({type:'warn',icon:r.type==='bill'?'🧾':'💵',title:`${r.name} is due today`,detail:`${r.type==='bill'?'Bill':'Income'} · ${fmtShort(r.amount)}`});else if(s.state==='upcoming'&&s.days<=3)alerts.push({type:'info',icon:r.type==='bill'?'🗓️':'💰',title:`${r.name} due soon`,detail:`In ${s.days} day${s.days!==1?'s':''} · ${fmtShort(r.amount)}`});else if(s.state==='overdue')alerts.push({type:'critical',icon:'⏰',title:`${r.name} is overdue`,detail:`Past due by ${Math.abs(s.days)} day${Math.abs(s.days)!==1?'s':''}`})})}if(alertSettings.spikeAlerts){const lastMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);const lastMonthKey=`${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;const lastMonthTotals={};entries.filter(e=>e.date.startsWith(lastMonthKey)&&!e.isDebtPayment).forEach(e=>{lastMonthTotals[e.category]=(lastMonthTotals[e.category]||0)+e.amount});ac.filter(c=>c.group!=='savings').forEach(c=>{const current=catTotals[c.name]||0;const prev=lastMonthTotals[c.name]||0;if(prev>=500&&current>prev*1.5)alerts.push({type:'info',icon:'📈',title:`${c.name} spending spiked`,detail:`${fmtShort(current)} this month vs ${fmtShort(prev)} last month`})})}const seen=new Set();return alerts.filter(a=>{const key=a.title+'|'+a.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,6)}
+function getSmartAlerts(ac,catTotals,totalIncome,remaining,monthTotal,daysLeft){const alerts=[];const threshold=alertSettings.budgetThreshold||80;ac.filter(c=>c.group!=='savings'&&(budgets[c.name]||0)>0).forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=spent/budget*100;if(pct>=100)alerts.push({type:'critical',icon:'🚨',title:`${c.name} is over budget`,detail:`Spent ${fmtShort(spent)} of ${fmtShort(budget)} (${Math.round(pct)}%)`});else if(pct>=threshold)alerts.push({type:'warn',icon:'⚠️',title:`${c.name} is near limit`,detail:`Spent ${Math.round(pct)}% of budget · ${fmtShort(Math.max(budget-spent,0))} left`})});if(alertSettings.overspendForecast){const dayOfMonth=now.getDate();const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(dayOfMonth>=5&&dayOfMonth<daysInMonth){const projected=(monthTotal/dayOfMonth)*daysInMonth;if(projected>totalIncome)alerts.push({type:'critical',icon:'📉',title:'On track to overspend this month',detail:`Projected spend ${fmtShort(projected)} vs income ${fmtShort(totalIncome)}`});else if(projected>totalIncome*0.9)alerts.push({type:'warn',icon:'📅',title:'Month-end cash will be tight',detail:`Projected remaining ${fmtShort(totalIncome-projected)} if spending continues`})}}if(alertSettings.lowBalanceAlerts){if(remaining<0)alerts.push({type:'critical',icon:'🧯',title:'You are in the red',detail:`Current remaining balance is ${fmtShort(remaining)}`});else if(daysLeft>0&&remaining/Math.max(daysLeft,1)<200)alerts.push({type:'warn',icon:'💸',title:'Daily budget is very low',detail:`Only ${fmtShort(remaining/Math.max(daysLeft,1))} per day left this month`})}if(alertSettings.recurringDueSoon){recurring.forEach(r=>{const s=recurringStatus(r);if(s.state==='due')alerts.push({type:'warn',icon:r.type==='bill'?'🧾':'💵',title:`${r.name} is due today`,detail:`${r.type==='bill'?'Bill':'Income'} · ${fmtShort(r.amount)}`});else if(s.state==='upcoming'&&s.days<=3)alerts.push({type:'info',icon:r.type==='bill'?'🗓️':'💰',title:`${r.name} due soon`,detail:`In ${s.days} day${s.days!==1?'s':''} · ${fmtShort(r.amount)}`});else if(s.state==='overdue')alerts.push({type:'critical',icon:'⏰',title:`${r.name} is overdue`,detail:`Past due by ${Math.abs(s.days)} day${Math.abs(s.days)!==1?'s':''}`})})}if(alertSettings.spikeAlerts){const lastMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);const lastMonthKey=`${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;const lastMonthTotals={};entries.filter(e=>e.date.startsWith(lastMonthKey)&&!e.isDebtPayment&&!e.isGoalContribution&&e.category!=='Transfer Fees').forEach(e=>{lastMonthTotals[e.category]=(lastMonthTotals[e.category]||0)+e.amount});ac.filter(c=>c.group!=='savings').forEach(c=>{const current=catTotals[c.name]||0;const prev=lastMonthTotals[c.name]||0;if(prev>=500&&current>prev*1.5)alerts.push({type:'info',icon:'📈',title:`${c.name} spending spiked`,detail:`${fmtShort(current)} this month vs ${fmtShort(prev)} last month`})})}const seen=new Set();return alerts.filter(a=>{const key=a.title+'|'+a.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,6)}
 
 /* Forecast */
 function getProjectedRecurringImpact(){const monthKey=currentMonthKey();const today=new Date(todayStr+'T00:00:00');let expenses=0,income=0;recurring.forEach(r=>{if(r.lastPaid===monthKey)return;const due=recurringDueDate(r,monthKey);if(due>=today){if(r.type==='bill')expenses+=Number(r.amount||0);else income+=Number(r.amount||0)}});return{expenses,income}}
@@ -2509,7 +2548,141 @@ function renderSalaryPromptCard(){const wrap=document.getElementById('salary-pro
 
 function makeDonutSVG(data,size){const total=data.reduce((s,d)=>s+d.value,0);if(total===0)return'';let cum=0;const r=size/2-6,ir=r*0.62,cx=size/2,cy=size/2;const paths=data.map(d=>{const pct=d.value/total;const s=cum*2*Math.PI-Math.PI/2;cum+=pct;const e=cum*2*Math.PI-Math.PI/2;const lg=pct>0.5?1:0;return`<path d="M${cx+r*Math.cos(s)},${cy+r*Math.sin(s)} A${r},${r} 0 ${lg} 1 ${cx+r*Math.cos(e)},${cy+r*Math.sin(e)} L${cx+ir*Math.cos(e)},${cy+ir*Math.sin(e)} A${ir},${ir} 0 ${lg} 0 ${cx+ir*Math.cos(s)},${cy+ir*Math.sin(s)}Z" fill="${d.color}" opacity="0.9"/>`}).join('');return`<svg viewBox="0 0 ${size} ${size}" class="donut-svg">${paths}<text x="${cx}" y="${cy-6}" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="800">${fmtShort(total)}</text><text x="${cx}" y="${cy+10}" text-anchor="middle" fill="var(--text3)" font-size="9" font-weight="500">Total Spent</text></svg>`}
 
-function calcHealthScore(){const ac=allCats();const savsB=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+(budgets[c.name]||0),0);const needsB=ac.filter(c=>c.group==='needs').reduce((s,c)=>s+(budgets[c.name]||0),0);const wantsB=ac.filter(c=>c.group==='wants').reduce((s,c)=>s+(budgets[c.name]||0),0);const monthlyExp=needsB+wantsB;const me=entries.filter(e=>e.date.startsWith(filterMonth));const totalDebt=debts.reduce((s,d)=>s+d.total,0);const efGoal=goals.find(g=>g.name.toLowerCase().includes('emergency'));const efCur=efGoal?efGoal.current:0;const factors=[];const sr=salary>0?savsB/salary:0;factors.push({name:'Savings Rate',score:Math.round(Math.min(sr/.55*25,25)),max:25,detail:`${Math.round(sr*100)}%`,color:'var(--green)'});const overCats=ac.filter(c=>{const sp=me.filter(e=>!e.isDebtPayment&&e.category===c.name).reduce((s,e)=>s+e.amount,0);return sp>(budgets[c.name]||0)&&(budgets[c.name]||0)>0}).length;const adherence=ac.length>0?Math.max(0,(ac.length-overCats)/ac.length):1;factors.push({name:'Budget Discipline',score:Math.round(adherence*25),max:25,detail:`${overCats} over`,color:'var(--blue)'});const efTarget=monthlyExp*3;const efPct=efTarget>0?Math.min(efCur/efTarget,1):0;factors.push({name:'Emergency Fund',score:Math.round(efPct*25),max:25,detail:efTarget>0?`${Math.round(efPct*100)}% of 3mo`:'Set goal',color:'var(--amber)'});const dti=salary>0?totalDebt/(salary*12):0;factors.push({name:'Debt Health',score:Math.round(totalDebt===0?25:Math.max(0,25*(1-dti))),max:25,detail:totalDebt===0?'Debt-free!':fmtShort(totalDebt),color:'var(--purple)'});const total=factors.reduce((s,f)=>s+f.score,0);let grade,color;if(total>=90){grade='Excellent';color='var(--green)'}else if(total>=75){grade='Great';color='var(--blue)'}else if(total>=60){grade='Good';color='var(--amber)'}else if(total>=40){grade='Fair';color='#f97316'}else{grade='Needs Work';color='var(--red)'}return{total,grade,color,factors}}
+function calcHealthScore(){
+  const ac=allCats();
+  const needsB=ac.filter(c=>c.group==='needs').reduce((s,c)=>s+(budgets[c.name]||0),0);
+  const wantsB=ac.filter(c=>c.group==='wants').reduce((s,c)=>s+(budgets[c.name]||0),0);
+  const monthlyExp=needsB+wantsB;
+  const me=entries.filter(e=>e.date.startsWith(filterMonth)&&!e.isDebtPayment&&!e.isGoalContribution&&e.category!=='Transfer Fees');
+  const allMe=entries.filter(e=>e.date.startsWith(filterMonth));
+  const totalDebt=debts.reduce((s,d)=>s+d.total,0);
+  const monthlyDebtPayments=debts.reduce((s,d)=>s+Number(d.payment||0),0);
+  const efGoal=goals.find(g=>g.name.toLowerCase().includes('emergency'));
+  const efCur=efGoal?efGoal.current:0;
+  const factors=[];
+
+  // 1. Savings Rate (20 pts) — actual savings entries this month
+  const actualSavings=me.filter(e=>{const cat=ac.find(c=>c.name===e.category);return cat&&cat.group==='savings';}).reduce((s,e)=>s+e.amount,0);
+  const sr=salary>0?actualSavings/salary:0;
+  const savScore=Math.min(20,Math.max(0,sr>=0.25?20:sr>=0.20?Math.round(17+(sr-0.20)/0.05*3):sr>=0.15?Math.round(14+(sr-0.15)/0.05*3):sr>=0.10?Math.round(10+(sr-0.10)/0.05*4):sr>=0.05?Math.round(5+(sr-0.05)/0.05*5):Math.round(sr/0.05*5)));
+  factors.push({name:'Savings Rate',icon:'💰',score:savScore,max:20,detail:`${Math.round(sr*100)}% of income saved`,tone:savScore>=16?'Strong':savScore>=10?'On track':savScore>=5?'Building':'Not yet',color:savScore>=16?'var(--green)':savScore>=10?'var(--blue)':savScore>=5?'var(--amber)':'var(--red)',insight:savScore>=16?'Great savings habit this month.':savScore>=10?`${fmt(Math.round(salary*0.20-actualSavings))} more would reach 20%.`:savScore>=5?'Try to reach 10% savings next month.':'Log savings contributions to build this score.'});
+
+  // 2. Budget Discipline (20 pts) — weighted by severity of overspend
+  const budgetedCats=ac.filter(c=>Number(budgets[c.name]||0)>0);
+  let totalBW=0,penaltyBW=0;
+  budgetedCats.forEach(c=>{const spent=me.filter(e=>e.category===c.name).reduce((s,e)=>s+e.amount,0);const budget=Number(budgets[c.name]||0);totalBW+=budget;if(spent>budget)penaltyBW+=Math.min(spent-budget,budget*2);});
+  const adherence=totalBW>0?Math.max(0,1-penaltyBW/totalBW):1;
+  const bdScore=Math.round(adherence*20);
+  const overCats=budgetedCats.filter(c=>{const sp=me.filter(e=>e.category===c.name).reduce((s,e)=>s+e.amount,0);return sp>Number(budgets[c.name]||0)}).length;
+  factors.push({name:'Budget Discipline',icon:'📊',score:bdScore,max:20,detail:overCats===0?`All ${budgetedCats.length} on track`:`${overCats} of ${budgetedCats.length} over budget`,tone:bdScore>=18?'Excellent':bdScore>=14?'Mostly on track':bdScore>=8?'Some overruns':'Over budget',color:bdScore>=16?'var(--green)':bdScore>=10?'var(--blue)':bdScore>=6?'var(--amber)':'var(--red)',insight:overCats===0?'All categories within budget — perfect discipline.':overCats===1?'One category over. Review it to get back on track.':overCats<=3?`${overCats} categories over. Adjust or redistribute.`:`${overCats} overruns — consider a budget rebalance.`});
+
+  // 3. Emergency Fund (20 pts) — months of expenses covered, target 6
+  let efScore=0;
+  if(monthlyExp>0){const mos=efCur/monthlyExp;efScore=mos>=6?20:mos>=3?Math.round(15+(mos-3)/3*5):mos>=1?Math.round(8+(mos-1)/2*7):mos>=0.5?Math.round(4+(mos-0.5)/0.5*4):Math.round(mos/0.5*4);}else if(efCur>0)efScore=10;
+  efScore=Math.min(20,Math.max(0,efScore));
+  const mosCov=monthlyExp>0?efCur/monthlyExp:0;
+  factors.push({name:'Emergency Fund',icon:'🛡️',score:efScore,max:20,detail:monthlyExp>0?`${mosCov.toFixed(1)} of 6 months covered`:efCur>0?fmt(efCur):'No goal found',tone:mosCov>=6?'Fully covered':mosCov>=3?'Baseline reached':mosCov>=1?'Growing':mosCov>0?'Starting out':'Not started',color:efScore>=16?'var(--green)':efScore>=10?'var(--blue)':efScore>=5?'var(--amber)':'var(--red)',insight:efScore>=20?'Fully funded emergency cushion.':efScore>=15?`${fmt(Math.max(monthlyExp*6-efCur,0))} more to reach 6 months.`:efScore>=8?`Target 3 months minimum (${fmt(Math.max(monthlyExp*3-efCur,0))} to go).`:'Create an Emergency Fund goal to start tracking.'});
+
+  // 4. Debt Load (20 pts) — monthly debt payments vs salary
+  const dti=salary>0?monthlyDebtPayments/salary:monthlyDebtPayments>0?1:0;
+  const dhScore=Math.min(20,Math.max(0,totalDebt===0?20:dti<0.10?Math.round(16+(0.10-dti)/0.10*4):dti<0.20?Math.round(12+(0.20-dti)/0.10*4):dti<0.36?Math.round(6+(0.36-dti)/0.16*6):dti<0.43?Math.round(3+(0.43-dti)/0.07*3):Math.round(3*(1-Math.min(dti,1)))));
+  factors.push({name:'Debt Load',icon:'💳',score:dhScore,max:20,detail:totalDebt===0?'Debt-free!':dti>0?`${Math.round(dti*100)}% of income to debt · ${fmtShort(totalDebt)} total`:`${fmtShort(totalDebt)} total`,tone:totalDebt===0?'Debt-free':dti<0.10?'Very low':dti<0.20?'Manageable':dti<0.36?'High':'Debt-heavy',color:dhScore>=16?'var(--green)':dhScore>=10?'var(--blue)':dhScore>=6?'var(--amber)':'var(--red)',insight:totalDebt===0?'No debt — all income stays with you.':dti<0.20?'Debt payments are manageable.':dti<0.36?'Debt is consuming a large share of income.':'High debt burden — focus on payoff to free up income.'});
+
+  // 5. Cash Flow (10 pts) — spending pace vs pro-rated monthly allowance
+  const carryover=getCarryoverOverspend();
+  const totalSpent=allMe.reduce((s,e)=>s+e.amount,0);
+  const effectiveSal=Math.max(salary-carryover,0);
+  const daysInMo=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const daysPassed=now.getDate();
+  const proRated=effectiveSal*(daysPassed/daysInMo);
+  const flowRatio=proRated>0?totalSpent/proRated:totalSpent>0?2:0;
+  const cfScore=flowRatio<=0.75?10:flowRatio<=0.90?9:flowRatio<=1.0?7:flowRatio<=1.15?4:flowRatio<=1.30?2:0;
+  const cashLeft=effectiveSal-totalSpent;
+  factors.push({name:'Cash Flow',icon:'📈',score:cfScore,max:10,detail:cashLeft>=0?`${fmt(cashLeft)} remaining`:`${fmt(Math.abs(cashLeft))} over this month`,tone:cfScore>=9?'Ahead of pace':cfScore>=7?'On track':cfScore>=4?'Slightly over':'Behind',color:cfScore>=8?'var(--green)':cfScore>=6?'var(--blue)':cfScore>=4?'var(--amber)':'var(--red)',insight:cfScore>=9?'Spending pace is well within budget.':cfScore>=7?'On track — keep monitoring.':cfScore>=4?'Slightly above pace. Ease off spending.':'Significantly over pace. Review expenses urgently.'});
+
+  // 6. Net Worth Trend (10 pts) — is NW growing vs last snapshot?
+  let nwtScore=5,nwtDetail='Not enough history',nwtTone='Unknown',nwtInsight='Save balances regularly to track your net worth trend.';
+  if(nwHistory&&nwHistory.length>=2){
+    const sorted=[...nwHistory].sort((a,b)=>(a.month||'').localeCompare(b.month||''));
+    const lat=sorted[sorted.length-1];const prv=sorted[sorted.length-2];
+    const latNW=lat.net!==undefined?lat.net:lat.total||0;
+    const prvNW=prv.net!==undefined?prv.net:prv.total||0;
+    const change=latNW-prvNW;
+    const changePct=prvNW!==0?change/Math.abs(prvNW):0;
+    nwtScore=changePct>=0.05?10:changePct>=0.01?8:changePct>=-0.01?6:changePct>=-0.05?3:1;
+    nwtTone=nwtScore>=8?'Growing':nwtScore>=6?'Stable':nwtScore>=3?'Slight decline':'Declining';
+    nwtDetail=change>=0?`+${fmtShort(change)} vs last snapshot`:`${fmtShort(change)} vs last snapshot`;
+    nwtInsight=nwtScore>=8?'Net worth is on the rise.':nwtScore>=6?'Stable — aim for consistent monthly growth.':nwtScore>=3?'Net worth dipped. Review debts or large expenses.':'Net worth declining. Reduce spending or pay down debt.';
+  }
+  factors.push({name:'Net Worth Trend',icon:'📉',score:nwtScore,max:10,detail:nwtDetail,tone:nwtTone,color:nwtScore>=8?'var(--green)':nwtScore>=6?'var(--blue)':nwtScore>=3?'var(--amber)':'var(--red)',insight:nwtInsight});
+
+  const total=factors.reduce((s,f)=>s+f.score,0);
+  let grade,color;
+  if(total>=90){grade='Excellent';color='var(--green)'}
+  else if(total>=75){grade='Great';color='var(--blue)'}
+  else if(total>=60){grade='Good';color='var(--amber)'}
+  else if(total>=40){grade='Fair';color='#f97316'}
+  else{grade='Needs Work';color='var(--red)'}
+  const tips=factors.filter(f=>f.score/f.max<0.6).sort((a,b)=>(a.score/a.max)-(b.score/b.max)).slice(0,2);
+  return{total,grade,color,factors,tips};
+}
+
+function buildHealthScoreHTML(hs){
+  const circ=2*Math.PI*54;
+  const offset=circ-(hs.total/100)*circ;
+  const factorHTML=hs.factors.map(f=>{
+    const pct=Math.round((f.score/f.max)*100);
+    const toneClass=pct>=80?'fh-tone-good':pct>=50?'fh-tone-mid':'fh-tone-low';
+    return `<div class="fh-factor">
+      <div class="fh-factor-top">
+        <div class="fh-factor-left">
+          <span class="fh-factor-icon">${f.icon}</span>
+          <div>
+            <div class="fh-factor-name">${f.name}</div>
+            <div class="fh-factor-detail">${f.detail}</div>
+          </div>
+        </div>
+        <div class="fh-factor-right">
+          <div class="fh-factor-pts" style="color:${f.color}">${f.score}<span class="fh-factor-max">/${f.max}</span></div>
+          <div class="fh-tone-badge ${toneClass}">${f.tone}</div>
+        </div>
+      </div>
+      <div class="fh-factor-track"><div class="fh-factor-fill" style="width:${pct}%;background:${f.color}"></div></div>
+      <div class="fh-factor-insight">${f.insight}</div>
+    </div>`;
+  }).join('');
+  const tipsHTML=hs.tips.length
+    ?`<div class="fh-tips"><div class="fh-tips-header">🎯 Top improvements</div>${hs.tips.map(t=>`<div class="fh-tip-row"><span class="fh-tip-icon">${t.icon}</span><div><strong>${t.name}</strong> — ${t.insight}</div></div>`).join('')}</div>`
+    :`<div class="fh-perfect"><span>✅</span><div><strong>Strong across the board</strong><div class="fh-perfect-sub">All areas performing well. Keep it up.</div></div></div>`;
+  return `<div class="fh-wrap">
+    <div class="fh-hero">
+      <div class="fh-circle-wrap">
+        <svg width="130" height="130" viewBox="0 0 130 130">
+          <defs><linearGradient id="fh-grad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="${hs.color}"/><stop offset="100%" stop-color="${hs.color}" stop-opacity="0.5"/></linearGradient></defs>
+          <circle cx="65" cy="65" r="54" class="score-bg" stroke-width="11"/>
+          <circle cx="65" cy="65" r="54" fill="none" stroke="url(#fh-grad)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}" class="score-fill"/>
+          <text x="65" y="60" text-anchor="middle" fill="var(--text)" font-size="34" font-weight="800">${hs.total}</text>
+          <text x="65" y="78" text-anchor="middle" fill="var(--text3)" font-size="11">out of 100</text>
+        </svg>
+      </div>
+      <div class="fh-grade-label" style="color:${hs.color}">${hs.grade}</div>
+      <div class="fh-grade-sub">Financial Health Score</div>
+    </div>
+    <div class="fh-scale">
+      <div class="fh-scale-bar">
+        <div class="fh-scale-seg" style="flex:40;background:var(--red)"></div>
+        <div class="fh-scale-seg" style="flex:20;background:#f97316"></div>
+        <div class="fh-scale-seg" style="flex:15;background:var(--amber)"></div>
+        <div class="fh-scale-seg" style="flex:15;background:var(--blue)"></div>
+        <div class="fh-scale-seg" style="flex:10;background:var(--green)"></div>
+        <div class="fh-scale-thumb" style="left:calc(${hs.total}% - 6px)"></div>
+      </div>
+      <div class="fh-scale-labels"><span>Needs Work</span><span>Fair</span><span>Good</span><span>Great</span><span>Excellent</span></div>
+    </div>
+    <div class="fh-factors">${factorHTML}</div>
+    ${tipsHTML}
+  </div>`;
+}
 
 
 let helpMode=localStorage.getItem('ft_help_mode')==='1';
@@ -3080,8 +3253,7 @@ function render(){
   const wantsB=ac.filter(c=>c.group==='wants').reduce((s,c)=>s+(budgets[c.name]||0),0);
   const savsB=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+(budgets[c.name]||0),0);
   const monthlyExp=needsB+wantsB;const unalloc=salary-totalBudgeted;
-  const monthInc=incomes.filter(i=>i.date.startsWith(filterMonth)&&!i.isSalaryDeposit);const extraIncome=monthInc.reduce((s,i)=>s+i.amount,0);
-  const carryoverOverspend=getCarryoverOverspend();
+    const carryoverOverspend=getCarryoverOverspend();
   const totalIncome=Number(salary||0);const totalDebt=debts.reduce((s,d)=>s+d.total,0);
   const me=entries.filter(e=>e.date.startsWith(filterMonth));
   const monthTotal=me.reduce((s,e)=>s+e.amount,0);
@@ -3089,8 +3261,8 @@ function render(){
   const weekStart=getStartOfWeek(now);
   const todayEnd=new Date(`${todayStr}T23:59:59`);
   const weekTotal=entries.filter(e=>{const d=new Date(`${e.date}T00:00:00`);return d>=weekStart&&d<=todayEnd}).reduce((s,e)=>s+e.amount,0);
-  const remaining=totalIncome-carryoverOverspend-monthTotal;const savRate=totalIncome>0?Math.round(savsB/totalIncome*100):0;
-  const catTotals={};ac.forEach(c=>catTotals[c.name]=0);me.filter(e=>!e.isDebtPayment&&!e.isGoalContribution).forEach(e=>{catTotals[e.category]=(catTotals[e.category]||0)+e.amount});
+  const remaining=totalIncome-carryoverOverspend-monthTotal;const actualSavings=me.filter(e=>{const cat=ac.find(c=>c.name===e.category);return cat&&cat.group==='savings';}).reduce((s,e)=>s+e.amount,0);const savRate=totalIncome>0?Math.round(actualSavings/totalIncome*100):0;
+  const catTotals=getMonthCategoryTotals();
   const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   const daysLeft=Math.max(daysInMonth-now.getDate()+1,1);
   const dailyLeft=daysLeft>0?remaining/daysLeft:0;
@@ -3165,17 +3337,30 @@ function render(){
   const hour=now.getHours();const greet=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
   let payInfo=null;
   try{ payInfo=getPaydayInfo(); }catch(e){ payInfo=null; }
-  const payChip=payInfo && Number.isFinite(payInfo.daysUntil) ? `<div class="g-tag">💸 Payday in ${payInfo.daysUntil}d</div>` : '';
   const spentPct=Math.max(0,Math.min(totalIncome>0?(monthTotal/totalIncome)*100:0,100));
   const safeNow=getSafeSpendRealData();
   const safeDaily=safeNow&&safeNow.daily?safeNow.daily:0;
   const savingsTone=savRate>=30?'Strong':savRate>=20?'Healthy':'Building';
-  const spendProgressText=totalIncome>0?`Spent ${fmt(monthTotal)} of ${fmt(totalIncome)}`:`Spent ${fmt(monthTotal)} this month`;
-  const spendRhythm=`<div class="greeting-mini-stats"><div class="greeting-mini-stat"><span class="greeting-mini-label">Today</span><strong>${fmt(todayTotal)}</strong></div><div class="greeting-mini-stat"><span class="greeting-mini-label">This week</span><strong>${fmt(weekTotal)}</strong></div></div>`;
-  const slide0 = `
+  const greetKicker=remaining<0?'Over budget this month':spentPct>90?'Nearing your limit':payInfo&&payInfo.daysUntil<=2?'Payday is almost here':daysLeft<=3?'Month is almost over':savRate>=20?'Strong savings this month':greet;
+  const momentumKicker=savRate>=30?'Excellent momentum':savRate>=20?'Looking good this month':savRate>0?'Keep building momentum':'Start tracking savings';
+  const payDayClass=payInfo&&Number.isFinite(payInfo.daysUntil)?(payInfo.daysUntil<=2?' g-tag-payday-soon':payInfo.daysUntil<=7?' g-tag-payday-close':''):'';
+  const payChip=payInfo&&Number.isFinite(payInfo.daysUntil)?`<div class="g-tag${payDayClass}">💸 Payday in ${payInfo.daysUntil}d</div>`:'';
+  const progressFillClass=spentPct>90?'greeting-progress-fill greeting-progress-fill--risk':spentPct>65?'greeting-progress-fill greeting-progress-fill--warn':'greeting-progress-fill';
+  const spendProgressText=totalIncome>0?`${fmt(monthTotal)} of ${fmtShort(totalIncome)}`:`${fmt(monthTotal)} spent`;
+  const daysElapsed=Math.max(daysInMonth-daysLeft,1);
+  const dailyAvg=daysElapsed>1?monthTotal/daysElapsed:0;
+  const todayVsAvg=dailyAvg>0?Math.round((todayTotal-dailyAvg)/dailyAvg*100):0;
+  const prevWeekEndDate=new Date(now);prevWeekEndDate.setDate(now.getDate()-7);prevWeekEndDate.setHours(23,59,59,999);
+  const prevWeekStartDate=new Date(now);prevWeekStartDate.setDate(now.getDate()-14);prevWeekStartDate.setHours(0,0,0,0);
+  const prevWeekTotal=entries.filter(e=>{const d=new Date(`${e.date}T00:00:00`);return d>=prevWeekStartDate&&d<=prevWeekEndDate;}).reduce((s,e)=>s+Number(e.amount||0),0);
+  const weekVsPrev=prevWeekTotal>0?Math.round((weekTotal-prevWeekTotal)/prevWeekTotal*100):0;
+  const todayTrendHtml=dailyAvg>0&&daysElapsed>1?(todayVsAvg>15?`<span class="greeting-mini-trend greeting-mini-trend--up">&#8593; ${Math.abs(todayVsAvg)}% vs avg</span>`:todayVsAvg<-15?`<span class="greeting-mini-trend greeting-mini-trend--down">&#8595; ${Math.abs(todayVsAvg)}% vs avg</span>`:''):'';
+  const weekTrendHtml=prevWeekTotal>0?(weekVsPrev>15?`<span class="greeting-mini-trend greeting-mini-trend--up">&#8593; ${Math.abs(weekVsPrev)}% vs last wk</span>`:weekVsPrev<-15?`<span class="greeting-mini-trend greeting-mini-trend--down">&#8595; ${Math.abs(weekVsPrev)}% vs last wk</span>`:''):'';
+  const spendRhythm=`<div class="greeting-mini-stats"><div class="greeting-mini-stat" onclick="showTab('history')" style="cursor:pointer"><span class="greeting-mini-label">&#128336; Today</span><strong>${fmt(todayTotal)}</strong>${todayTrendHtml}</div><div class="greeting-mini-stat" onclick="showTab('history')" style="cursor:pointer"><span class="greeting-mini-label">&#128197; This week</span><strong>${fmt(weekTotal)}</strong>${weekTrendHtml}</div></div>`;
+  const slide0=`
     <div class="greeting-slide ${greetingCardIndex===0?'active':''}">
       <div class="greeting-top">
-        <div class="greeting-kicker">${greet}</div>
+        <div class="greeting-kicker">${greetKicker}</div>
         <div class="greeting-side-pill">✨ Monthly overview</div>
       </div>
       <div class="greeting-value">${fmt(remaining)}</div>
@@ -3184,11 +3369,11 @@ function render(){
       <div class="greeting-chip-row">${savRate>=20?`<div class="g-tag">🔥 ${savRate}% savings</div>`:''}${payChip}</div>
       ${spendRhythm}
       <div class="greeting-progress">
-        <div class="greeting-progress-track"><div class="greeting-progress-fill" style="width:${spentPct}%"></div></div>
-        <div class="greeting-progress-meta"><span>${spendProgressText}${carryoverOverspend>0?` · Carryover ${fmt(carryoverOverspend)}`:''}</span><span>${Math.round(spentPct)}% used</span></div>
+        <div class="greeting-progress-track"><div class="${progressFillClass}" style="width:${spentPct}%"></div></div>
+        <div class="greeting-progress-meta"><span>${spendProgressText}${carryoverOverspend>0?` · ${fmtShort(carryoverOverspend)} carryover`:''}</span><span>${Math.round(spentPct)}% used</span></div>
       </div>
     </div>`;
-  const slide1 = `
+  const slide1=`
     <div class="greeting-slide ${greetingCardIndex===1?'active':''}">
       <div class="greeting-top">
         <div class="greeting-kicker">${safeNow.status==='good'?'You are on track':safeNow.status==='warn'?'Stay a little tighter':'Watch your pace'}</div>
@@ -3199,10 +3384,10 @@ function render(){
       <div class="greeting-subline"><span>Bills and buffer already accounted for</span></div>
       <div class="greeting-chip-row"><div class="g-tag">🧾 Bills ${fmtShort(safeNow.upcomingBillsTotal||0)}</div><div class="g-tag">🛡️ Buffer ${fmtShort(safeNow.buffer||0)}</div>${payChip}</div>
     </div>`;
-  const slide2 = `
+  const slide2=`
     <div class="greeting-slide ${greetingCardIndex===2?'active':''}">
       <div class="greeting-top">
-        <div class="greeting-kicker">Looking good this month</div>
+        <div class="greeting-kicker">${momentumKicker}</div>
         <div class="greeting-side-pill">🌟 Momentum</div>
       </div>
       <div class="greeting-value">${savRate}%</div>
@@ -3214,10 +3399,10 @@ function render(){
     <div class="greeting-carousel">
       <div class="greeting-slides">${slide0}${slide1}${slide2}</div>
       <div class="greeting-nav">
-        <div class="greeting-dots">
-          <button class="greeting-dot ${greetingCardIndex===0?'active':''}" onclick="setGreetingCard(0)" aria-label="Greeting card 1"></button>
-          <button class="greeting-dot ${greetingCardIndex===1?'active':''}" onclick="setGreetingCard(1)" aria-label="Greeting card 2"></button>
-          <button class="greeting-dot ${greetingCardIndex===2?'active':''}" onclick="setGreetingCard(2)" aria-label="Greeting card 3"></button>
+        <div class="greeting-tabs">
+          <button class="greeting-tab ${greetingCardIndex===0?'active':''}" onclick="setGreetingCard(0)">Overview</button>
+          <button class="greeting-tab ${greetingCardIndex===1?'active':''}" onclick="setGreetingCard(1)">Daily</button>
+          <button class="greeting-tab ${greetingCardIndex===2?'active':''}" onclick="setGreetingCard(2)">Savings</button>
         </div>
       </div>
     </div>`;
@@ -3255,11 +3440,11 @@ function render(){
   renderMoneyFlowCard();
 
   // Budget attention — only show categories near or over limit
-  const nonSavings=ac.filter(c=>c.group!=='savings');
-  const problemCats=nonSavings.map(c=>{const spent=catTotals[c.name]||0;const bgt=budgets[c.name]||0;const pct=bgt>0?(spent/bgt)*100:0;return{...c,spent,bgt,pct}}).filter(c=>c.bgt>0&&c.pct>=75).sort((a,b)=>b.pct-a.pct);
+  const budgetProgressItems=getBudgetProgressItems(ac).filter(c=>c.budget>0||c.spent>0).sort((a,b)=>Number(b.over)-Number(a.over)||b.pct-a.pct||b.spent-a.spent);
+  const problemCats=budgetProgressItems.filter(c=>c.budget>0&&c.pct>=75);
   const budgetAttCard=document.getElementById('budget-attention-card');
   if(problemCats.length){
-    budgetAttCard.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Budget Attention</span><span style="font-size:12px;color:var(--text3);cursor:pointer;font-weight:600" onclick="toggleShowMore();if(!showMoreExpanded)toggleShowMore()">All budgets →</span></div>${problemCats.slice(0,4).map(c=>{const over=c.spent>c.bgt;const color=over?'var(--red)':c.pct>=90?'var(--amber)':'var(--amber)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)} ${over?'<span style="color:var(--red);font-size:11px">⚠️ over</span>':''}</span><span class="progress-value" style="color:${color}">${fmtShort(c.spent)} / ${fmtShort(c.bgt)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(c.pct,100)}%;background:${color}"></div></div></div>`}).join('')}</div>`;
+    budgetAttCard.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Budget Attention</span><span style="font-size:12px;color:var(--text3);cursor:pointer;font-weight:600" onclick="openAllBudgets()">All budgets →</span></div>${problemCats.slice(0,4).map(c=>{const color=c.over?'var(--red)':'var(--amber)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)} ${c.over?'<span style="color:var(--red);font-size:11px">⚠️ over</span>':''}</span><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(c.pct,100)}%;background:${color}"></div></div></div>`}).join('')}</div>`;
   }else{
     budgetAttCard.innerHTML='';
   }
@@ -3297,7 +3482,7 @@ function render(){
   if(donutData.length){const total=donutData.reduce((s,d)=>s+d.value,0);document.getElementById('donut-area').innerHTML=`<div class="donut-container">${makeDonutSVG(donutData,160)}<div class="donut-legend">${donutData.map(d=>`<div class="legend-item"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-label">${esc(d.label.length>18?d.label.substring(0,18)+'…':d.label)}</span><span class="legend-value">${Math.round(d.value/total*100)}%</span></div>`).join('')}</div></div>`}else document.getElementById('donut-area').innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No spending recorded yet</div></div>';
 
   // Budget bars (full)
-  document.getElementById('budget-bars').innerHTML=nonSavings.map(c=>{const spent=catTotals[c.name]||0,bgt=budgets[c.name]||0;const pct=bgt>0?Math.min((spent/bgt)*100,100):0;const over=spent>bgt&&bgt>0;const color=over?'var(--red)':pct>=80?'var(--amber)':'var(--green)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)}</span><span class="progress-value" style="color:${color}">${fmtShort(spent)} / ${fmtShort(bgt)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div></div>`}).join('');
+  document.getElementById('budget-bars').innerHTML=budgetProgressItems.length?budgetProgressItems.map(c=>{const pct=c.budget>0?Math.min(c.pct,100):0;const color=c.over?'var(--red)':pct>=80?'var(--amber)':'var(--green)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)}</span><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div></div>`}).join(''):'<div class="empty"><div class="empty-icon">📒</div><div class="empty-text">Set a budget or log spending to populate this list</div></div>';
 
   // Month chart
   const months=[];for(let i=5;i>=0;i--){const dt=new Date(now.getFullYear(),now.getMonth()-i,1);const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;months.push({label:dt.toLocaleDateString('en-PH',{month:'short'}),total:entries.filter(e=>e.date.startsWith(key)).reduce((s,e)=>s+e.amount,0)})}const maxM=Math.max(...months.map(m=>m.total),1);
@@ -3330,8 +3515,7 @@ function render(){
   else{const incomeOnly=[...incomes];sortHistoryItems(incomeOnly,'newest');ihEl.innerHTML=`<div class="tx-list">${incomeOnly.slice(0,20).map(i=>{return`<div class="tx-item" onclick="openIncomeEdit(${i.id})"><div class="tx-icon cat-income">💵</div><div class="tx-info"><div class="tx-name">${esc(i.source)}</div><div class="tx-meta">${formatDateTime(i)} · Received in ${esc(getAccountInfo(i.account||'cash').name)}${i.note?' · '+esc(i.note):''}</div></div><div class="tx-amount" style="color:var(--green)">+${fmt(i.amount)}</div><button class="btn-icon tx-delete" onclick="event.stopPropagation();deleteIncome(${i.id})" style="border:none;color:var(--red);font-size:12px">✕</button></div>`}).join('')}</div>`}
 
   // === GOALS ===
-  const fullCirc2=2*Math.PI*42;const scoreOff2=fullCirc2-(hs.total/100)*fullCirc2;
-  document.getElementById('health-score').innerHTML=`<div style="text-align:center;margin-bottom:16px"><svg width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="score-bg" stroke-width="8"/><circle cx="50" cy="50" r="42" fill="none" stroke="${hs.color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${fullCirc2}" stroke-dashoffset="${scoreOff2}" class="score-fill"/><text x="50" y="50" class="score-text">${hs.total}</text></svg><div style="font-size:16px;font-weight:700;color:${hs.color};margin-top:4px">${hs.grade}</div></div>${hs.factors.map(f=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:13px;font-weight:600">${f.name}</div><div style="font-size:11px;color:var(--text3)">${f.detail}</div></div><div style="font-weight:800;color:${f.color}">${f.score}/${f.max}</div></div>`).join('')}`;
+  document.getElementById('health-score').innerHTML=buildHealthScoreHTML(hs);
   document.getElementById('goals-list').innerHTML=goals.length?goals.map(g=>{const pct=g.target>0?Math.min(g.current/g.target*100,100):0;const left=g.target-g.current;const mo=g.monthly>0?Math.ceil(Math.max(left,0)/g.monthly):Infinity;const c=pct>=100?'var(--green)':pct>=50?'var(--accent)':'var(--amber)';const summary=getGoalContributionSummary(g.id);return`<div class="goal-card"><div class="goal-top"><span class="goal-name">${esc(g.name)}</span><span class="goal-pct" style="color:${c}">${pct.toFixed(0)}%</span></div><div class="goal-bar"><div class="goal-fill" style="width:${pct}%;background:${c}"></div></div><div class="goal-sub">${fmt(g.current)} / ${fmt(g.target)} ${left>0?(g.monthly>0?`· ~${mo} months`:''):'· Done! 🎉'}</div><div style="margin-top:10px;font-size:12px;color:var(--text2)">${summary.count?`<div><strong>Last:</strong> ${formatDateTime(summary.latest)} — ${fmt(summary.latest.amount)}</div><div><strong>Total added:</strong> ${fmt(summary.total)}</div><div><strong>${summary.count} contribution${summary.count>1?'s':''}</strong></div>`:'<div style="color:var(--text3)">No contributions yet</div>'}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openGoalContribution(${g.id})">🎯 Log Contribution</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalHistory(${g.id})">History</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalEdit(${g.id})">Edit</button></div></div>`}).join(''):'<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">No goals yet</div></div>';
   document.getElementById('wishlist').innerHTML=wishlist.length?wishlist.map(w=>{const days=Math.floor((new Date()-new Date(w.addedDate))/864e5);const pc={Low:'var(--text3)',Medium:'var(--amber)',Want:'var(--blue)','Need Soon':'var(--red)'};return`<div class="wish-card"><div style="flex:1"><div style="font-weight:700;font-size:13px">${esc(w.name)} <span style="font-size:11px;color:${pc[w.priority]||'var(--text3)'};font-weight:600">${w.priority}</span></div><div style="font-size:11px;color:var(--text3)">${days}d ago</div></div><div style="font-weight:700;color:var(--amber)">${fmtShort(w.price)}</div><button class="btn-sm btn-success" style="padding:6px 10px" onclick="buyWish(${w.id})">Buy</button><button class="btn-icon" onclick="deleteWish(${w.id})" style="border:none;color:var(--red);font-size:14px">✕</button></div>`}).join(''):'<div class="empty"><div class="empty-icon">🛒</div><div class="empty-text">Wishlist empty 🏆</div></div>';
   const efM=budgets['Emergency Fund (Digital Bank)']||0;const ef3=monthlyExp*3,ef6=monthlyExp*6;const efG=goals.find(g=>g.name.toLowerCase().includes('emergency'));const efC=efG?efG.current:0;const efProgress=ef6>0?Math.min(efC/ef6*100,100):0;const efGap=Math.max(ef6-efC,0);const efGap3=Math.max(ef3-efC,0);const efSafeExtra=Math.max(Math.min(Math.floor(Math.max(forecast.projectedBalance,0)*0.35/100)*100,efGap),0);const efMonthsLeft=efM>0&&efGap>0?Math.ceil(efGap/efM):0;let efStatus='Start building your safety cushion';let efStatusColor='var(--amber)';let efInsight='An emergency fund helps cover job loss, medical needs, or urgent surprises without using debt.';let efAction=efG?`Add ${fmt(efM||1000)} to your emergency fund to keep momentum.`:'Create an Emergency Fund goal first so FinTrack can track your progress.';if(efC>=ef6){efStatus='Fully covered';efStatusColor='var(--green)';efInsight='You already have 6 months of expenses saved. That is a strong emergency cushion.';efAction='You can keep adding slowly or redirect new savings to other goals.';}else if(efC>=ef3){efStatus='Basic safety reached';efStatusColor='var(--blue)';efInsight=`You have at least 3 months covered. You need ${fmt(efGap)} more to reach the full 6-month target.`;efAction=efSafeExtra>0?`You can safely add about ${fmt(efSafeExtra)} now.`:efM>0?`Keep adding around ${fmt(efM)} per month to finish in about ${efMonthsLeft} month${efMonthsLeft!==1?'s':''}.`:'Set a monthly contribution so this grows automatically over time.';}else if(efC>0){efStatus='Still below safe level';efStatusColor='var(--amber)';efInsight=`You need ${fmt(efGap3)} more just to reach the 3-month safety level.`;efAction=efSafeExtra>0?`Good month to add ${fmt(efSafeExtra)} if you can.`:efM>0?`Try to add at least ${fmt(efM)} this month.`:'Add a monthly contribution target to make this easier.';}if(!efG){document.getElementById('ef-calc').innerHTML=`<div style="display:grid;gap:10px"><div style="padding:14px;background:var(--surface2);border-radius:var(--radius-sm)"><div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Emergency Fund Guide</div><div style="font-size:20px;font-weight:800">${fmt(ef6)}</div><div style="font-size:12px;color:var(--text2);margin-top:4px">Suggested full target based on 6 months of expenses</div></div><div style="padding:14px;background:var(--surface2);border-radius:var(--radius-sm)"><div style="font-size:13px;font-weight:700;color:${efStatusColor}">${efStatus}</div><div style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:6px">${efInsight}</div><div style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px">${efAction}</div></div><button class="btn btn-primary" onclick="document.getElementById('g-name').value='Emergency Fund';document.getElementById('g-target').value=${Math.round(ef6)};document.getElementById('g-current').value=0;document.getElementById('g-monthly').value=${Math.round(efM||1000)};openModal('modal-add-goal')">Create Emergency Fund Goal</button></div>`;}else{document.getElementById('ef-calc').innerHTML=`<div style="display:grid;gap:10px"><div style="padding:14px;background:var(--surface2);border-radius:var(--radius-sm)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px"><div><div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Emergency Fund Status</div><div style="font-size:22px;font-weight:800;margin-top:2px">${fmt(efC)} <span style="font-size:13px;font-weight:600;color:var(--text3)">/ ${fmt(ef6)}</span></div></div><div style="font-size:11px;font-weight:700;color:${efStatusColor};background:${efStatusColor==='var(--green)'?'var(--green-soft)':efStatusColor==='var(--blue)'?'var(--blue-soft)':'var(--amber-soft)'};padding:6px 10px;border-radius:999px">${efStatus}</div></div><div class="goal-bar" style="margin-bottom:8px"><div class="goal-fill" style="width:${efProgress}%;background:${efStatusColor}"></div></div><div style="display:grid;gap:6px;font-size:12px;color:var(--text2)"><div><strong>Full target:</strong> ${fmt(ef6)} · 6 months of expenses</div><div><strong>Basic safety:</strong> ${fmt(ef3)} · 3 months</div><div><strong>Still needed:</strong> ${fmt(efGap)}</div></div></div><div style="padding:14px;background:var(--surface2);border-radius:var(--radius-sm)"><div style="font-size:13px;font-weight:700;margin-bottom:6px">What this means</div><div style="font-size:12px;color:var(--text2);line-height:1.6">${efInsight}</div><div style="font-size:13px;font-weight:700;margin:12px 0 6px">Recommended next step</div><div style="font-size:12px;color:var(--text2);line-height:1.6">${efAction}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-primary" onclick="openGoalContribution(${efG.id})">🎯 Add Money</button><button class="btn btn-sm btn-ghost" onclick="openGoalHistory(${efG.id})">View History</button></div></div>`;}

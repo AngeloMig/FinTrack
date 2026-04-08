@@ -96,7 +96,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .greeting-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .greeting-kicker{font-size:12px;opacity:.8;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
 .greeting-side-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);font-size:11px;font-weight:700;white-space:nowrap}
-.greeting-value{font-size:34px;font-weight:800;line-height:1.02;letter-spacing:-1.2px;margin-top:10px}
+.greeting-value{font-size:34px;font-weight:800;line-height:1.02;letter-spacing:-1.2px;margin-top:10px;text-shadow:0 2px 28px rgba(255,255,255,.2)}
 .greeting-label{font-size:13px;opacity:.88;font-weight:600;margin-top:6px}
 .greeting-subline{font-size:13px;opacity:.74;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .greeting-chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -108,10 +108,13 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .greeting-progress-track{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
 .greeting-progress-fill{height:100%;border-radius:999px;background:rgba(255,255,255,.55)}
 .greeting-progress-meta{display:flex;justify-content:space-between;gap:10px;font-size:11px;opacity:.78;margin-top:6px}
-.greeting-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px}
-.greeting-dots{display:flex;justify-content:center;gap:6px;flex:0 0 auto}
-.greeting-dot{width:7px;height:7px;border:none;border-radius:999px;background:rgba(255,255,255,.28);cursor:pointer;transition:width .28s ease, background .24s ease, opacity .24s ease, transform .24s ease;opacity:.75}
-.greeting-dot.active{width:18px;background:rgba(255,255,255,.96);opacity:1;transform:none}
+.greeting-progress-fill--warn{background:rgba(251,191,36,.82)}
+.greeting-progress-fill--risk{background:rgba(248,113,113,.88)}
+.greeting-nav{display:flex;align-items:center;justify-content:center;margin-top:14px}
+.greeting-tabs{display:flex;gap:5px;width:100%}
+.greeting-tab{flex:1;padding:6px 8px;border:none;border-radius:999px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.65);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:background .24s ease,color .24s ease}
+.greeting-tab.active{background:rgba(255,255,255,.9);color:#6366f1}
+.greeting-tab:hover:not(.active){background:rgba(255,255,255,.22)}
 .greeting-slide.active .greeting-kicker,
 .greeting-slide.active .greeting-side-pill,
 .greeting-slide.active .greeting-value,
@@ -144,6 +147,12 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .greeting-carousel{touch-action:pan-y;user-select:none;-webkit-user-select:none}
 .greeting-slides{cursor:grab}
 .greeting-slides.dragging{cursor:grabbing}
+.greeting-mini-trend{display:block;font-size:9px;font-weight:700;margin-top:3px;opacity:.9}
+.greeting-mini-trend--up{color:rgba(251,191,36,.95)}
+.greeting-mini-trend--down{color:rgba(134,239,172,.95)}
+.greeting .g-tag-payday-soon{background:rgba(245,158,11,.32);animation:paydayPulse 2s ease-in-out infinite}
+.greeting .g-tag-payday-close{background:rgba(245,158,11,.18)}
+@keyframes paydayPulse{0%,100%{opacity:1}50%{opacity:.58}}
 
 @media (max-width: 360px){
   .greeting-mini-stats{grid-template-columns:1fr}
