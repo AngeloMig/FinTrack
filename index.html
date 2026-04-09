@@ -307,14 +307,14 @@
 <div class="modal-overlay" id="modal-add-goal" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>New Savings Goal</h3>
   <div class="input-group"><label class="input-label">Goal Name</label><input type="text" class="input" id="g-name" placeholder="e.g. Emergency Fund"></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Target (₱)</label><input type="number" class="input" id="g-target" placeholder="270000"></div><div class="input-group"><label class="input-label">Current (₱)</label><input type="number" class="input" id="g-current" placeholder="0"></div></div>
-  <div class="input-group"><label class="input-label">Monthly Contribution (₱)</label><input type="number" class="input" id="g-monthly" placeholder="15000"></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Monthly Contribution (₱)</label><input type="number" class="input" id="g-monthly" placeholder="15000"></div><div class="input-group"><label class="input-label">Target Date <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input type="date" class="input" id="g-target-date"></div></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-add-goal')">Cancel</button><button class="btn btn-primary" onclick="addGoal()">Add Goal</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-edit-goal" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Edit Goal</h3>
   <div class="input-group"><label class="input-label">Name</label><input type="text" class="input" id="mg-name"></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Target (₱)</label><input type="number" class="input" id="mg-target"></div><div class="input-group"><label class="input-label">Current (₱)</label><input type="number" class="input" id="mg-current"></div></div>
-  <div class="input-group"><label class="input-label">Monthly (₱)</label><input type="number" class="input" id="mg-monthly"></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Monthly (₱)</label><input type="number" class="input" id="mg-monthly"></div><div class="input-group"><label class="input-label">Target Date <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input type="date" class="input" id="mg-target-date"></div></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-edit-goal')">Cancel</button><button class="btn btn-danger btn-sm" onclick="deleteGoal()">Delete</button><button class="btn btn-primary" onclick="saveGoalEdit()">Save</button></div>
 </div></div>
 
@@ -336,9 +336,10 @@
 </div></div>
 
 <div class="modal-overlay" id="modal-add-debt" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Add Debt</h3>
-  <div class="input-row"><div class="input-group"><label class="input-label">Name</label><input type="text" class="input" id="d-name" placeholder="e.g. Credit Card"></div><div class="input-group"><label class="input-label">Type</label><select class="input" id="d-type"><option>Credit Card</option><option>Personal Loan</option><option>Friend/Family</option><option>BNPL</option><option>Other</option></select></div></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Name</label><input type="text" class="input" id="d-name" placeholder="e.g. Credit Card"></div><div class="input-group"><label class="input-label">Type</label><select class="input" id="d-type" onchange="toggleDebtTypeFields()"><option>Credit Card</option><option>Personal Loan</option><option>Friend/Family</option><option>BNPL</option><option>Other</option></select></div></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Total Owed (₱)</label><input type="number" class="input" id="d-total" placeholder="0"></div><div class="input-group"><label class="input-label">Monthly Payment (₱)</label><input type="number" class="input" id="d-payment" placeholder="0"></div></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Interest (%/yr)</label><input type="number" class="input" id="d-interest" placeholder="0" step="0.1"></div><div class="input-group"><label class="input-label">Due Date</label><input type="text" class="input" id="d-due" placeholder="e.g. 15th"></div></div>
+  <div class="input-group" id="d-deadline-group" style="display:none"><label class="input-label">Repayment Deadline</label><input type="date" class="input" id="d-deadline"><div style="font-size:11px;color:var(--text3);margin-top:4px">The date they expect you to fully repay</div></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-add-debt')">Cancel</button><button class="btn btn-danger" onclick="addDebt()">Add Debt</button></div>
 </div></div>
 
@@ -363,6 +364,7 @@
   <div class="input-group"><label class="input-label">Name</label><input type="text" class="input" id="md-name"></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Remaining (₱)</label><input type="number" class="input" id="md-total"></div><div class="input-group"><label class="input-label">Payment (₱/mo)</label><input type="number" class="input" id="md-payment"></div></div>
   <div class="input-group"><label class="input-label">Interest (%/yr)</label><input type="number" class="input" id="md-interest" step="0.1"></div>
+  <div class="input-group" id="md-deadline-group" style="display:none"><label class="input-label">Repayment Deadline</label><input type="date" class="input" id="md-deadline"></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-edit-debt')">Cancel</button><button class="btn btn-danger btn-sm" onclick="deleteDebt()">Delete</button><button class="btn btn-primary" onclick="saveDebtEdit()">Save</button></div>
 </div></div>
 

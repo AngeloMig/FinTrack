@@ -27,8 +27,8 @@
 .debt-card{padding:16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;cursor:pointer;transition:var(--transition)}
 .debt-card:hover{border-color:var(--red)}
 
-.wish-card{display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;transition:var(--transition)}
-.wish-card:hover{border-color:var(--amber)}
+.wish-card{padding:14px 14px 14px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;transition:var(--transition)}
+.wish-card:hover{box-shadow:var(--shadow)}
 
 .score-circle{width:100px;height:100px;margin:0 auto 12px;position:relative}
 .score-bg{fill:none;stroke:var(--surface2);stroke-width:8}
