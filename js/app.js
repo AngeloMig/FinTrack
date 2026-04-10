@@ -10,6 +10,7 @@ const todayStr=toLocal(now);
 let moneyFlowViewerTheme=localStorage.getItem('ft_money_flow_theme')||'auto';
 let filterMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 const fmt=n=>"₱"+Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtSigned=n=>{n=Number(n||0);if(n===0)return fmt(0);return`${n>0?'+':'-'}${fmt(Math.abs(n))}`};
 const fmtShort=n=>{n=Number(n||0);if(Math.abs(n)>=1e6)return"₱"+(n/1e6).toFixed(1)+"M";if(Math.abs(n)>=1e3)return"₱"+Math.round(n/1e3)+"K";return"₱"+Math.round(n).toLocaleString()};
 const fmtBudget=n=>{const value=Number(n||0);return"₱"+value.toLocaleString("en-PH",{minimumFractionDigits:Number.isInteger(value)?0:2,maximumFractionDigits:2})};
 const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML};
@@ -298,36 +299,56 @@ function renderAnalyticsSummary(){
   const monthIncome=Number(salary||0);
   const carryoverOverspend=getCarryoverOverspend();
   const remaining=Math.max(monthIncome-carryoverOverspend-monthSpent,0);
-  const safe = getSafeSpendRealData();
-  const safeDaily = safe.daily;
-  const statusClass = safe.status;
-  const monthlyStatus = statusClass==='good' ? 'On Track' : statusClass==='warn' ? 'Tight' : 'Risk';
-  const statusText = statusClass==='good'
-    ? 'You are on track this month.'
-    : statusClass==='warn'
-      ? 'Your spending room is getting tighter.'
-      : 'Your remaining budget is tight.';
+  const safe=getSafeSpendRealData();
+  const safeDaily=safe.daily;
+  const statusClass=safe.status;
+  const monthlyStatus=statusClass==='good'?'On Track':statusClass==='warn'?'Tight':'At Risk';
+  const statusText=statusClass==='good'?'You are on track this month.':statusClass==='warn'?'Your spending room is getting tighter.':'Your remaining budget is tight.';
+
+  const [fy,fm]=(filterMonth||'').split('-');
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthLabel=(monthNames[parseInt(fm,10)-1]||filterMonth)+' '+fy;
+
+  const spentPct=monthIncome>0?Math.min(100,Math.round(monthSpent/monthIncome*100)):0;
+  const progressCls=spentPct>85?'risk':spentPct>70?'warn':'good';
+
+  const remRatio=monthIncome>0?remaining/monthIncome:1;
+  const remValCls=remRatio<0.15?'sum-val-risk':remRatio<0.30?'sum-val-warn':'';
+  const remSub=remRatio<0.15?'Running low — be careful':remRatio<0.30?'Getting tighter':'After bills & reserves';
+
+  const daysElapsed=Math.max(1,new Date(todayStr+'T00:00:00').getDate());
+  const avgDaily=Math.round(monthSpent/daysElapsed);
+
   wrap.innerHTML=`
+    <div class="ms-prog-wrap">
+      <div class="ms-prog-labels">
+        <span>${fmtShort(monthSpent)} spent</span>
+        <span>${spentPct}% of ${fmtShort(monthIncome)}</span>
+      </div>
+      <div class="ms-prog-track">
+        <div class="ms-prog-fill ${progressCls}" style="width:${spentPct}%"></div>
+      </div>
+    </div>
     <div class="summary-grid">
       <div class="summary-stat">
         <div class="summary-label">Spent this month</div>
         <div class="summary-value">${fmt(monthSpent)}</div>
-        <div class="summary-sub">Logged expenses in ${filterMonth}</div>
+        <div class="summary-sub">Avg ${fmt(avgDaily)}/day in ${monthLabel}</div>
       </div>
       <div class="summary-stat">
         <div class="summary-label">Left to spend</div>
-        <div class="summary-value">${fmt(remaining)}</div>
-        <div class="summary-sub">Based on income and spending so far</div>
+        <div class="summary-value ${remValCls}">${fmt(remaining)}</div>
+        <div class="summary-sub">${remSub}</div>
       </div>
       <div class="summary-stat">
-        <div class="summary-label">Same daily limit</div>
+        <div class="summary-label">Daily safe limit</div>
         <div class="summary-value">${fmt(safeDaily)}</div>
-        <div class="summary-sub">Same number shown on the homepage</div>
+        <div class="summary-sub">÷ ${safe.daysLeft} day${safe.daysLeft===1?'':'s'} remaining</div>
       </div>
       <div class="summary-stat">
         <div class="summary-label">Monthly status</div>
-        <div class="summary-value">${monthlyStatus}</div>
-        <div class="summary-sub">A quick read of your current pace</div>
+        <div class="summary-value"><span class="sum-status-badge ${statusClass}">${monthlyStatus}</span></div>
+        <div class="summary-sub">${statusClass==='good'?'Spending pace is healthy':statusClass==='warn'?'Stay controlled':'Limit spending now'}</div>
       </div>
     </div>
     <div class="summary-status ${statusClass}">${statusText}</div>
@@ -341,21 +362,59 @@ function renderAnalyticsInsights(){
   const monthEntries=getMonthEntries();
   const catTotals=getMonthCategoryTotals();
   const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
-  const safe = getSafeSpendRealData();
-  const safeDaily = safe.daily;
+  const safe=getSafeSpendRealData();
+  const safeDaily=safe.daily;
   const insights=[];
+
   if(monthEntries.length===0){
     insights.push({icon:'📝',title:'No spending logged yet',body:'Add your first expense this month to unlock more useful breakdowns and patterns.'});
     insights.push({icon:'💸',title:'Your full budget is still available',body:'Because there is no logged spending yet, your daily limit is still wide open.'});
     insights.push({icon:'🎯',title:'Good time to build the habit',body:'The earlier you log this month, the smarter your insights will become.'});
   } else {
+    // Spike detection: compare current vs previous month per category
+    const prevKey=getPreviousMonthKeyFrom(filterMonth);
+    const prevTotals=getMonthCategoryTotals(prevKey);
+    const allCatNames=new Set([...Object.keys(catTotals),...Object.keys(prevTotals)]);
+    let biggestSpike=null, biggestDrop=null;
+    allCatNames.forEach(cat=>{
+      const curr=Number(catTotals[cat]||0);
+      const prev=Number(prevTotals[cat]||0);
+      if(prev<=0||curr<=0) return;
+      const diff=curr-prev;
+      const pct=Math.round((diff/prev)*100);
+      const absDiff=Math.abs(diff);
+      if(absDiff<500) return; // ignore tiny fluctuations
+      if(pct>=50&&(!biggestSpike||absDiff>biggestSpike.absDiff))
+        biggestSpike={cat,curr,prev,pct,absDiff};
+      if(pct<=-30&&(!biggestDrop||absDiff>biggestDrop.absDiff))
+        biggestDrop={cat,curr,prev,pct,absDiff};
+    });
+
+    if(biggestSpike){
+      insights.push({
+        icon:'📈',
+        title:`${biggestSpike.cat} spending spiked`,
+        body:`Up ${biggestSpike.pct}% vs last month — ${fmt(biggestSpike.curr)} this month vs ${fmt(biggestSpike.prev)} last month.`,
+        highlight:'warn'
+      });
+    }
+    if(biggestDrop){
+      insights.push({
+        icon:'📉',
+        title:`${biggestDrop.cat} spending dropped`,
+        body:`Down ${Math.abs(biggestDrop.pct)}% vs last month — ${fmt(biggestDrop.curr)} this month vs ${fmt(biggestDrop.prev)} last month.`,
+        highlight:'good'
+      });
+    }
+
     if(sortedCats[0]) insights.push({icon:'📌',title:`${sortedCats[0][0]} is your biggest category`,body:`It accounts for ${fmt(sortedCats[0][1])} of spending so far this month.`});
     insights.push({icon:'📅',title:'Your current daily pace',body:`To stay balanced, try to keep average spending around ${fmt(safeDaily)} per day for the rest of the month.`});
-    const totalBudget = Object.values(budgets||{}).reduce((a,b)=>a+Number(b||0),0);
+    const totalBudget=Object.values(budgets||{}).reduce((a,b)=>a+Number(b||0),0);
     if(totalBudget>0) insights.push({icon:'🧭',title:'Your spending vs budget',body:`You have used ${Math.round((monthSpent/totalBudget)*100)}% of your visible monthly budgets so far.`});
   }
-  wrap.innerHTML=`<div class="insights-list">${insights.slice(0,3).map(x=>`
-    <div class="insight-item">
+
+  wrap.innerHTML=`<div class="insights-list">${insights.slice(0,4).map(x=>`
+    <div class="insight-item${x.highlight?' insight-'+x.highlight:''}">
       <div class="insight-icon">${x.icon}</div>
       <div>
         <div class="insight-title">${x.title}</div>
@@ -415,6 +474,85 @@ function renderTrendSummary(){
   if(latest>prev && prev>0) note='Spending is trending up compared with last month.';
   else if(latest<prev && prev>0) note='Spending is lower than last month.';
   wrap.innerHTML=`<div class="trend-note">Average monthly spending: <strong>${fmt(avg)}</strong>. ${note}</div>`;
+}
+
+function renderSpendingCalendar(){
+  const wrap=document.getElementById('spending-calendar');
+  if(!wrap)return;
+  const [fy,fm]=(filterMonth||'').split('-');
+  const year=parseInt(fy),month=parseInt(fm)-1;
+  const firstDay=new Date(year,month,1);
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const offset=(firstDay.getDay()+6)%7; // Monday-first
+  const daySpent={};
+  entries.filter(e=>(e.date||'').startsWith(filterMonth)).forEach(e=>{
+    const d=parseInt((e.date||'').slice(8,10));
+    if(d)daySpent[d]=(daySpent[d]||0)+Number(e.amount||0);
+  });
+  const safe=getSafeSpendRealData();
+  const dailyRef=safe.daily>0?safe.daily:Math.max(Number(salary||0)/30,1);
+  const dayLabels=['Mo','Tu','We','Th','Fr','Sa','Su'];
+  const cells=[];
+  for(let i=0;i<offset;i++)cells.push('<div></div>');
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=`${filterMonth}-${String(d).padStart(2,'0')}`;
+    const spent=daySpent[d]||0;
+    const isToday=dateStr===todayStr;
+    const isFuture=dateStr>todayStr;
+    let cls='spend-cal-day';
+    if(isFuture)cls+=' spend-cal-future';
+    else if(spent===0)cls+=' spend-cal-zero';
+    else{
+      const ratio=spent/dailyRef;
+      if(ratio<=0.3)cls+=' spend-cal-low';
+      else if(ratio<=0.8)cls+=' spend-cal-mid';
+      else if(ratio<=1.2)cls+=' spend-cal-high';
+      else cls+=' spend-cal-over';
+    }
+    if(isToday)cls+=' spend-cal-today';
+    cells.push(`<div class="${cls}" onclick="showCalDay('${dateStr}')" title="${fmt(spent)}">${d}</div>`);
+  }
+  const rem=cells.length%7;
+  if(rem>0)for(let i=rem;i<7;i++)cells.push('<div></div>');
+  const header=dayLabels.map(l=>`<div class="spend-cal-header-cell">${l}</div>`).join('');
+  wrap.innerHTML=`
+    <div class="spend-cal">
+      <div class="spend-cal-grid spend-cal-header-row">${header}</div>
+      <div class="spend-cal-grid">${cells.join('')}</div>
+      <div class="spend-cal-legend">
+        <span class="spend-cal-leg spend-cal-zero">No spend</span>
+        <span class="spend-cal-leg spend-cal-low">Low</span>
+        <span class="spend-cal-leg spend-cal-mid">Moderate</span>
+        <span class="spend-cal-leg spend-cal-high">High</span>
+        <span class="spend-cal-leg spend-cal-over">Over limit</span>
+      </div>
+      <div id="spend-cal-detail" class="spend-cal-detail"></div>
+    </div>`;
+}
+
+function showCalDay(dateStr){
+  const detail=document.getElementById('spend-cal-detail');
+  if(!detail)return;
+  if(detail.dataset.active===dateStr){detail.innerHTML='';detail.dataset.active='';return;}
+  detail.dataset.active=dateStr;
+  const dayEntries=entries.filter(e=>e.date===dateStr);
+  const total=dayEntries.reduce((sum,e)=>sum+Number(e.amount||0),0);
+  const dateLabel=new Date(dateStr+'T00:00:00').toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});
+  if(!dayEntries.length){detail.innerHTML=`<div class="spend-cal-detail-head"><strong>${dateLabel}</strong><span style="color:var(--text3)">No spending</span></div>`;return;}
+  detail.innerHTML=`<div class="spend-cal-detail-head"><strong>${dateLabel}</strong><span>${fmt(total)}</span></div>${dayEntries.map(e=>`<div class="spend-cal-detail-row"><span class="spend-cal-detail-cat">${getCatInfo(e.category||'').icon||'📦'} ${esc(e.category||'—')}</span><span class="spend-cal-detail-amt">${fmt(e.amount)}</span></div>`).join('')}`;
+}
+
+function openBudgetInlineEdit(btn,name,currentBudget){
+  const valSpan=btn.previousElementSibling;
+  if(!valSpan)return;
+  const inp=document.createElement('input');
+  inp.type='number';inp.className='budget-inline-input';
+  inp.value=currentBudget||'';inp.placeholder='0';inp.min='0';
+  const save=()=>{const val=parseFloat(inp.value)||0;budgets[name]=val;saveData();render();};
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape')render();});
+  valSpan.replaceWith(inp);btn.style.display='none';
+  inp.focus();inp.select();
 }
 
 function rgbaFromHex(hex,alpha=.35){
@@ -619,9 +757,7 @@ function getMoneyFlowNodeKind(nodeId=''){
   return'category';
 }
 function fmtSignedMoneyFlow(value){
-  const amount=Number(value||0);
-  if(amount===0)return fmt(0);
-  return`${amount>0?'+':'-'}${fmt(Math.abs(amount))}`;
+  return fmtSigned(value);
 }
 function getMoneyFlowPercentLabel(value,total){
   return total>0?`${Math.round((Number(value||0)/Number(total||0))*100)}%`:'0%';
@@ -1355,6 +1491,143 @@ function renderMoneyFlowCard(){
 }
 
 
+let safeSpendBreakdownStyle=0;
+function setSafeSpendStyle(i){safeSpendBreakdownStyle=i;renderSafeSpendCard();}
+
+function _ssStyle0(s){
+  const base=Math.max(s.totalIncome,1);
+  const spentW=Math.round(s.spent/base*100);
+  const carryW=s.carryoverOverspend>0?Math.round(s.carryoverOverspend/base*100):0;
+  const billsW=Math.round(s.upcomingBillsTotal/base*100);
+  const bufferW=Math.round(s.buffer/base*100);
+  const freeW=Math.max(0,100-spentW-carryW-billsW-bufferW);
+  return `
+    <div class="alloc-bar">
+      <div class="alloc-seg alloc-spent" style="width:${spentW}%"></div>
+      ${carryW>0?`<div class="alloc-seg alloc-carry" style="width:${carryW}%"></div>`:''}
+      ${billsW>0?`<div class="alloc-seg alloc-bills" style="width:${billsW}%"></div>`:''}
+      <div class="alloc-seg alloc-buffer" style="width:${bufferW}%"></div>
+      <div class="alloc-seg alloc-free" style="width:${freeW}%"></div>
+    </div>
+    <div class="alloc-rows">
+      <div class="alloc-row" onclick="toggleBreakdown('salary',this)" data-breakdown="salary">
+        <span class="alloc-dot alloc-income"></span><span class="alloc-name">Monthly salary</span><span class="alloc-val">+${fmt(s.monthlyIncome)}</span>
+      </div>
+      ${s.extraIncome>0?`<div class="alloc-row"><span class="alloc-dot alloc-extra-income"></span><span class="alloc-name">Extra income</span><span class="alloc-val">+${fmt(s.extraIncome)}</span></div>`:''}
+      <div class="alloc-row" onclick="toggleBreakdown('spent',this)" data-breakdown="spent">
+        <span class="alloc-dot alloc-spent"></span><span class="alloc-name">Spent so far</span><span class="alloc-val neg">−${fmt(s.spent)}</span>
+      </div>
+      ${s.carryoverOverspend>0?`<div class="alloc-row" onclick="toggleBreakdown('carryover',this)" data-breakdown="carryover"><span class="alloc-dot alloc-carry"></span><span class="alloc-name">Last month overspend</span><span class="alloc-val neg">−${fmt(s.carryoverOverspend)}</span></div>`:''}
+      <div class="alloc-row" onclick="toggleBreakdown('bills',this)" data-breakdown="bills">
+        <span class="alloc-dot alloc-bills"></span><span class="alloc-name">Upcoming bills</span><span class="alloc-val neg">−${fmt(s.upcomingBillsTotal)}</span>
+      </div>
+      <div class="alloc-row" onclick="toggleBreakdown('buffer',this)" data-breakdown="buffer">
+        <span class="alloc-dot alloc-buffer"></span><span class="alloc-name">Safety buffer (10%)</span><span class="alloc-val neg">−${fmt(s.buffer)}</span>
+      </div>
+    </div>
+    <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>
+    <div class="alloc-result">
+      <div class="alloc-result-lhs"><span class="alloc-dot alloc-free"></span><span class="alloc-result-rem">${fmt(s.remaining)} left</span><span class="alloc-result-op">÷ ${s.daysLeft} day${s.daysLeft===1?'':'s'}</span></div>
+      <div class="alloc-result-rhs">= <strong>${fmt(s.daily)}</strong>/day</div>
+    </div>`;
+}
+
+function _ssStyle1(s){
+  const base=Math.max(s.monthlyIncome,1);
+  const spentDeg=Math.round(s.spent/base*360);
+  const billsDeg=Math.round(s.upcomingBillsTotal/base*360);
+  const bufferDeg=Math.round(s.buffer/base*360);
+  const freeDeg=Math.max(0,360-spentDeg-billsDeg-bufferDeg);
+  const a1=spentDeg, a2=a1+billsDeg, a3=a2+bufferDeg;
+  const gradient=`conic-gradient(var(--red) 0deg ${a1}deg,var(--amber) ${a1}deg ${a2}deg,var(--border) ${a2}deg ${a3}deg,var(--accent) ${a3}deg 360deg)`;
+  const items=[
+    {cls:'alloc-spent',label:'Spent',val:fmt(s.spent)},
+    ...(s.upcomingBillsTotal>0?[{cls:'alloc-bills',label:'Bills',val:fmt(s.upcomingBillsTotal)}]:[]),
+    {cls:'alloc-buffer',label:'Buffer',val:fmt(s.buffer)},
+    {cls:'alloc-free',label:'Remaining',val:fmt(s.remaining)},
+  ];
+  return `
+    <div class="ss-donut-wrap">
+      <div class="ss-donut" style="background:${gradient}"></div>
+      <div class="ss-donut-legend">
+        ${items.map(i=>`<div class="alloc-dl-item"><span class="alloc-dot ${i.cls}"></span><span class="alloc-dl-label">${i.label}</span><span class="alloc-dl-val">${i.val}</span></div>`).join('')}
+      </div>
+    </div>
+    <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>
+    <div class="alloc-result" style="margin-top:10px">
+      <div class="alloc-result-lhs"><span class="alloc-dot alloc-free"></span><span class="alloc-result-rem">${fmt(s.remaining)} left</span><span class="alloc-result-op">÷ ${s.daysLeft} day${s.daysLeft===1?'':'s'}</span></div>
+      <div class="alloc-result-rhs">= <strong>${fmt(s.daily)}</strong>/day</div>
+    </div>`;
+}
+
+function _ssStyle2(s){
+  const chips=[
+    {cls:'fchip-base',amount:fmtShort(s.monthlyIncome),label:'salary',op:null},
+    {cls:'fchip-spent',amount:fmtShort(s.spent),label:'spent',op:'−'},
+    ...(s.upcomingBillsTotal>0?[{cls:'fchip-bills',amount:fmtShort(s.upcomingBillsTotal),label:'bills',op:'−'}]:[]),
+    {cls:'fchip-buffer',amount:fmtShort(s.buffer),label:'buffer',op:'−'},
+  ];
+  return `
+    <div class="ss-formula">
+      ${chips.map(c=>`${c.op?`<span class="ss-fop">${c.op}</span>`:''}<div class="ss-fchip ${c.cls}"><span class="ss-famt">${c.amount}</span><span class="ss-flabel">${c.label}</span></div>`).join('')}
+    </div>
+    <div class="ss-formula-result">
+      <span class="ss-freq-eq">=</span>
+      <span class="ss-freq-rem">${fmt(s.remaining)}</span>
+      <span class="ss-freq-op">÷ ${s.daysLeft} day${s.daysLeft===1?'':'s'}</span>
+      <span class="ss-freq-eq">=</span>
+      <span class="ss-freq-daily">${fmt(s.daily)}<span class="ss-freq-unit">/day</span></span>
+    </div>
+    <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>`;
+}
+
+function _ssStyle3(s){
+  const rows=[
+    {label:'Monthly salary',val:`+${fmt(s.monthlyIncome)}`,cls:'ll-pos',breakdown:'salary'},
+    {label:'Spent so far',val:`−${fmt(s.spent)}`,cls:'ll-neg',breakdown:'spent'},
+    ...(s.carryoverOverspend>0?[{label:'Carryover overspend',val:`−${fmt(s.carryoverOverspend)}`,cls:'ll-neg',breakdown:'carryover'}]:[]),
+    {label:'Upcoming bills',val:`−${fmt(s.upcomingBillsTotal)}`,cls:'ll-neg',breakdown:'bills'},
+    {label:'Safety buffer (10%)',val:`−${fmt(s.buffer)}`,cls:'ll-neg',breakdown:'buffer'},
+  ];
+  return `
+    <div class="ss-ledger">
+      ${rows.map(r=>`<div class="ss-ledger-row" onclick="toggleBreakdown('${r.breakdown}',this)" data-breakdown="${r.breakdown}"><span class="ss-ledger-lbl">${r.label}</span><span class="ss-ledger-val ${r.cls}">${r.val}</span></div>`).join('')}
+      <div class="ss-ledger-total"><span>Remaining</span><span>${fmt(s.remaining)}</span></div>
+    </div>
+    <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>
+    <div class="ss-ledger-daily">${fmt(s.remaining)} ÷ ${s.daysLeft} days = <strong>${fmt(s.daily)}/day</strong></div>`;
+}
+
+function _ssStyle4(s){
+  const base=Math.max(s.monthlyIncome,1);
+  const afterSpend=Math.max(s.monthlyIncome-(s.carryoverOverspend||0)-s.spent,0);
+  const afterBills=Math.max(afterSpend-s.upcomingBillsTotal,0);
+  const afterBuffer=Math.max(afterBills-s.buffer,0);
+  const w1=100, w2=Math.round(afterSpend/base*100), w4=Math.round(afterBuffer/base*100);
+  const steps=[
+    {label:'Salary',sub:`+${fmt(s.monthlyIncome)}`,w:w1,cls:'step-full'},
+    {label:'After spending',sub:`−${fmt(s.spent)}`,w:w2,cls:'step-mid'},
+    {label:'After bills & buffer',sub:`−${fmt(s.upcomingBillsTotal+s.buffer)}`,w:w4,cls:'step-rem'},
+  ];
+  return `
+    <div class="ss-steps">
+      ${steps.map(st=>`
+        <div class="ss-step-row">
+          <div class="ss-step-meta"><span class="ss-step-lbl">${st.label}</span><span class="ss-step-sub">${st.sub}</span></div>
+          <div class="ss-step-track"><div class="ss-step-bar ${st.cls}" style="width:${st.w}%"></div></div>
+        </div>`).join('')}
+    </div>
+    <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>
+    <div class="ss-steps-result">${fmt(s.remaining)} remaining ÷ ${s.daysLeft} days = <strong>${fmt(s.daily)}/day</strong></div>`;
+}
+
+function renderBreakdownExplainer(s){
+  const labels=['Bar & rows','Donut chart','Formula','Ledger','Step bars'];
+  const picker=`<div class="ss-style-picker">${labels.map((l,i)=>`<button class="ss-style-btn${i===safeSpendBreakdownStyle?' active':''}" onclick="setSafeSpendStyle(${i})">${l}</button>`).join('')}</div>`;
+  const fns=[_ssStyle0,_ssStyle1,_ssStyle2,_ssStyle3,_ssStyle4];
+  return picker+fns[safeSpendBreakdownStyle](s);
+}
+
 function getSafeSpendRealData(){
   const monthKey = currentMonthKey();
   const daysLeft = getDaysLeftInShownMonth();
@@ -1374,8 +1647,10 @@ function getSafeSpendRealData(){
     .sort((a,b)=>a.due-b.due);
 
   const upcomingBillsTotal = upcomingBillsList.reduce((sum, r) => sum + Number(r.amount || 0), 0);
-  const buffer = Math.floor(monthlyIncome * 0.1);
-  const remaining = Math.max(monthlyIncome - carryoverOverspend - spent - upcomingBillsTotal - buffer, 0);
+  const extraIncome = getMonthIncomeTotal(monthKey);
+  const totalIncome = monthlyIncome + extraIncome;
+  const buffer = Math.floor(totalIncome * 0.1);
+  const remaining = Math.max(totalIncome - carryoverOverspend - spent - upcomingBillsTotal - buffer, 0);
   const daily = Math.floor(remaining / Math.max(daysLeft, 1));
 
   let status = 'good', label = 'On track';
@@ -1388,6 +1663,8 @@ function getSafeSpendRealData(){
 
   return {
     monthlyIncome,
+    extraIncome,
+    totalIncome,
     spent,
     carryoverOverspend,
     upcomingBillsTotal,
@@ -1409,6 +1686,16 @@ function renderSafeSpendCard(){
   const s=getSafeSpendRealData();
   card.style.display='block';
 
+  const spendable = Math.max(s.monthlyIncome - (s.carryoverOverspend||0) - s.upcomingBillsTotal - s.buffer, 1);
+  const budgetPct = Math.min(100, Math.round((s.spent / spendable) * 100));
+
+  const todaySpent = entries.filter(e => e.date === todayStr).reduce((sum, e) => sum + Number(e.amount||0), 0);
+  const todayPct = s.daily > 0 ? Math.round(todaySpent / s.daily * 100) : 0;
+  const todayCls = todayPct >= 100 ? 'risk' : todayPct >= 70 ? 'warn' : 'good';
+  const todayBarW = Math.min(100, todayPct);
+  const todayLeft = Math.max(s.daily - todaySpent, 0);
+  const todayLeftLabel = todaySpent >= s.daily ? 'Limit reached' : `${fmt(todayLeft)} left today`;
+
   wrap.innerHTML=`
     <div class="safe-spend-title-row">
       <div class="safe-spend-title-left">
@@ -1427,28 +1714,35 @@ function renderSafeSpendCard(){
       </div>
     </div>
     <div class="safe-spend-main">
-      <div class="safe-spend-amount">${fmt(s.daily)}</div>
+      <div class="safe-spend-amount ${s.status!=='good'?s.status:''}">${fmt(s.daily)}</div>
     </div>
-    <div class="safe-spend-meta">${fmt(s.remaining)} remaining this month across ${s.daysLeft} day${s.daysLeft===1?'':'s'}.</div>
+    <div class="safe-spend-meta-row">
+      <span class="safe-spend-meta">${fmt(s.remaining)} remaining this month</span>
+      <span class="safe-spend-days-pill">${s.daysLeft} day${s.daysLeft===1?'':'s'} left</span>
+    </div>
+    <div class="safe-spend-progress-track">
+      <div class="safe-spend-progress-fill ${s.status}" style="width:${budgetPct}%"></div>
+    </div>
+    <div class="safe-spend-progress-label">
+      <span>${fmtShort(s.spent)} spent</span>
+      <span>${budgetPct}% of budget</span>
+    </div>
 
-    <div class="safe-spend-explainer">
-      <div class="safe-spend-breakdown">
-        <div class="safe-spend-break-chip base" data-breakdown="salary" onclick="toggleBreakdown('salary', this)">
-          Start <strong>${fmtShort(s.monthlyIncome)}</strong>
-        </div>
-        <div class="safe-spend-break-chip deduct" data-breakdown="spent" onclick="toggleBreakdown('spent', this)">
-          Spent <strong><span class="minus">−</span>${fmtShort(s.spent)}</strong>
-        </div>
-        ${s.carryoverOverspend>0?`<div class="safe-spend-break-chip deduct" data-breakdown="carryover" onclick="toggleBreakdown('carryover', this)">Carryover <strong><span class="minus">−</span>${fmtShort(s.carryoverOverspend)}</strong></div>`:''}
-        <div class="safe-spend-break-chip deduct" data-breakdown="bills" onclick="toggleBreakdown('bills', this)">
-          Bills <strong><span class="minus">−</span>${fmtShort(s.upcomingBillsTotal)}</strong>
-        </div>
-        <div class="safe-spend-break-chip deduct" data-breakdown="buffer" onclick="toggleBreakdown('buffer', this)">
-          Buffer <strong><span class="minus">−</span>${fmtShort(s.buffer)}</strong>
-        </div>
+    <div class="safe-spend-today">
+      <div class="safe-spend-today-header">
+        <span class="safe-spend-today-title">Today</span>
+        <span class="safe-spend-today-amounts">
+          <span class="safe-spend-today-spent ${todayCls}">${fmt(todaySpent)}</span>
+          <span class="safe-spend-today-of">/ ${fmt(s.daily)}</span>
+        </span>
+        <span class="safe-spend-today-left ${todayCls}">${todayLeftLabel}</span>
       </div>
-      <div id="safe-spend-breakdown-detail" class="safe-spend-detail" data-active="" style="display:none"></div>
+      <div class="safe-spend-today-track">
+        <div class="safe-spend-today-fill ${todayCls}" style="width:${todayBarW}%"></div>
+      </div>
     </div>
+
+    <div class="safe-spend-explainer">${renderBreakdownExplainer(s)}</div>
   `;
 }
 
@@ -1469,7 +1763,7 @@ function toggleBreakdown(type, chipEl){
   const el = document.getElementById('safe-spend-breakdown-detail');
   if(!el) return;
 
-  document.querySelectorAll('.safe-spend-break-chip').forEach(chip=>chip.classList.remove('active'));
+  document.querySelectorAll('[data-breakdown]').forEach(chip=>chip.classList.remove('active'));
 
   if(el.dataset.active === type){
     el.innerHTML = '';
@@ -1669,6 +1963,21 @@ function getDebtPaymentFeeMeta(payment){const fee=getDebtPaymentFee(payment);ret
 function getDebtPaymentSummary(id){const list=getDebtPaymentsForDebt(id);const total=list.reduce((sum,p)=>sum+Number(p.amount||0),0);return{count:list.length,total,latest:list[0]||null}}
 function getActiveDebts(){return debts.filter(d=>Number(d.total||0)>0)}
 function getPaidOffDebts(){return debts.filter(d=>Number(d.total||0)<=0)}
+function getDebtPayoffProjection(remaining,payment,annualRate){
+  if(remaining<=0)return{months:0,payoffDate:null,totalInterest:0,isViable:true};
+  if(payment<=0)return{months:null,payoffDate:null,totalInterest:null,isViable:false};
+  let months,totalInterest=0;
+  if(annualRate>0){
+    const r=annualRate/100/12;
+    if(payment<=remaining*r)return{months:null,payoffDate:null,totalInterest:null,isViable:false};
+    months=Math.ceil(-Math.log(1-(r*remaining)/payment)/Math.log(1+r));
+    totalInterest=Math.max(Math.round(payment*months-remaining),0);
+  }else{
+    months=Math.ceil(remaining/payment);
+  }
+  const payoffDate=new Date();payoffDate.setMonth(payoffDate.getMonth()+months);
+  return{months,payoffDate,totalInterest,isViable:true};
+}
 function openDebtHistory(id){const debt=debts.find(d=>d.id===id);if(!debt)return;document.getElementById('dh-title').textContent=`${debt.name} Payments`;const list=getDebtPaymentsForDebt(id);document.getElementById('dh-list').innerHTML=list.length?list.map(p=>`<div class="tx-item"><div class="tx-icon cat-debt">💳</div><div class="tx-info"><div class="tx-name">${fmt(p.amount)}</div><div class="tx-meta">${esc(formatDateTime(p))}${p.markedMonthly?' · monthly':''}${p.account?` · ${esc(getAccountInfo(p.account).name)}`:''}${getDebtPaymentFeeMeta(p)}${p.note?` · ${esc(p.note)}`:''}</div></div></div>`).join(''):`<div class="empty"><div class="empty-text">No payments yet</div></div>`;openModal('modal-debt-history')}
 function openDebtPayment(id){const debt=debts.find(x=>x.id===id);if(!debt)return;activeDebtPaymentDebtId=id;document.getElementById('dp-debt-name').textContent=`Payment for ${debt.name}`;document.getElementById('dp-amount').value=debt.payment||debt.total||'';document.getElementById('dp-date').value=todayStr;document.getElementById('dp-note').value='';document.getElementById('dp-fee').value='0';document.getElementById('dp-mark-paid').value='yes';buildAccountSelect('dp-account',true);document.getElementById('dp-account').value=getDefaultAccountKey();updateDebtPaymentPreview();openModal('modal-debt-payment')}
 function saveDebtPayment(){const debt=debts.find(d=>d.id===activeDebtPaymentDebtId);if(!debt)return;const rawAmount=parseFloat(document.getElementById('dp-amount').value)||0;const fee=Math.max(parseFloat(document.getElementById('dp-fee').value)||0,0);const date=document.getElementById('dp-date').value;const account=document.getElementById('dp-account').value||getDefaultAccountKey();const note=document.getElementById('dp-note').value.trim();const markPaid=document.getElementById('dp-mark-paid').value==='yes';if(rawAmount<=0||!date)return alert('Enter a valid amount and date.');if(!account)return alert('Choose an account.');const amount=Math.min(rawAmount,Math.max(Number(debt.total||0),0));if(amount<=0)return alert('This debt is already fully paid.');const totalDeduction=amount+fee;const balanceState=getSpendValidationState(account,totalDeduction);if(!balanceState.hasEnough)return alert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);debt.total=Math.max(0,Number(debt.total||0)-amount);if(markPaid)debt.lastPaidMonth=(date||todayStr).slice(0,7);debt.lastPaidDate=date;debt.lastPaidAmount=amount;const paymentId=nextDebtPaymentId++;debtPayments.unshift(stampRecord({id:paymentId,debtId:debt.id,name:debt.name,amount,fee,date,account,note,markedMonthly:markPaid}));if(fee>0)entries.unshift(stampRecord({id:nextId++,date,category:'Transfer Fees',amount:fee,account,note:`Debt payment fee: ${debt.name}${note?` · ${note}`:''}`,isDebtPaymentFee:true,debtId:debt.id,debtPaymentId:paymentId}));entries.unshift(stampRecord({id:nextId++,date,category:'Debt Payment',amount,note:`Debt Payment: ${debt.name}${note?` · ${note}`:''}`,account,isDebtPayment:true,debtId:debt.id,debtPaymentId:paymentId}));adjustAccountBalance(account,-totalDeduction);const cleared=Number(debt.total||0)<=0;closeModal('modal-debt-payment');saveData();render();showActionToast(`${fmt(amount)} paid to ${debt.name}`,`Remaining balance: ${fmt(debt.total||0)}${fee>0?` · Fee ${fmt(fee)}`:''}`,'💳');if(cleared)showMilestoneSheet({icon:'🎉',title:'Debt cleared',body:`${debt.name} is now fully paid.`,statLabel:'Amount cleared',statValue:fmt(amount)})}
@@ -3248,6 +3557,7 @@ function render(){
     });
   }catch(e){}
   try{ renderAnalyticsInsights(); }catch(e){}
+  try{ renderSpendingCalendar(); }catch(e){}
   try{ renderBudgetFocus(); }catch(e){}
   try{ renderTrendSummary(); }catch(e){}
 
@@ -3474,7 +3784,7 @@ function render(){
   if(donutData.length){const total=donutData.reduce((s,d)=>s+d.value,0);document.getElementById('donut-area').innerHTML=`<div class="donut-container">${makeDonutSVG(donutData,160)}<div class="donut-legend">${donutData.map(d=>`<div class="legend-item"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-label">${esc(d.label.length>18?d.label.substring(0,18)+'…':d.label)}</span><span class="legend-value">${Math.round(d.value/total*100)}%</span></div>`).join('')}</div></div>`}else document.getElementById('donut-area').innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No spending recorded yet</div></div>';
 
   // Budget bars (full)
-  document.getElementById('budget-bars').innerHTML=budgetProgressItems.length?budgetProgressItems.map(c=>{const pct=c.budget>0?Math.min(c.pct,100):0;const color=c.over?'var(--red)':pct>=80?'var(--amber)':'var(--green)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)}</span><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div></div>`}).join(''):'<div class="empty"><div class="empty-icon">📒</div><div class="empty-text">Set a budget or log spending to populate this list</div></div>';
+  document.getElementById('budget-bars').innerHTML=budgetProgressItems.length?budgetProgressItems.map(c=>{const pct=c.budget>0?Math.min(c.pct,100):0;const color=c.over?'var(--red)':pct>=80?'var(--amber)':'var(--green)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)}</span><div class="budget-val-row"><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span><button class="budget-edit-btn" onclick="openBudgetInlineEdit(this,'${esc(c.name)}',${c.budget})" title="Edit budget">✏</button></div></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div></div>`}).join(''):'<div class="empty"><div class="empty-icon">📒</div><div class="empty-text">Set a budget or log spending to populate this list</div></div>';
 
   // Month chart
   const months=[];for(let i=5;i>=0;i--){const dt=new Date(now.getFullYear(),now.getMonth()-i,1);const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;months.push({label:dt.toLocaleDateString('en-PH',{month:'short'}),total:entries.filter(e=>e.date.startsWith(key)).reduce((s,e)=>s+e.amount,0)})}const maxM=Math.max(...months.map(m=>m.total),1);
@@ -3500,7 +3810,7 @@ function render(){
   const expenseTotal=filtEnt.reduce((s,e)=>s+e.amount,0);const incomeTotal=filtInc.reduce((s,i)=>s+i.amount,0);
   const historySummary=getHistorySummaryMetrics(historyCards,expenseTotal,incomeTotal,histState);
   renderHistoryTopbar(histState,historySummary);
-  document.getElementById('history-summary').innerHTML=`<div class="stats-grid" style="margin-bottom:12px"><div class="stat-card"><div class="stat-label">Results</div><div class="stat-value" style="font-size:18px">${historyCards.length}</div><div class="stat-change">${esc(historySummary.periodLabel)}</div></div><div class="stat-card"><div class="stat-label">Expenses</div><div class="stat-value" style="font-size:16px;color:var(--red)">-${fmtShort(expenseTotal)}</div><div class="stat-change">${historySummary.spanDays?`Avg/day ${fmtShort(historySummary.avgSpendPerDay)}`:'No spend yet'}</div></div><div class="stat-card"><div class="stat-label">Income</div><div class="stat-value" style="font-size:16px;color:var(--green)">+${fmtShort(incomeTotal)}</div><div class="stat-change">${historySummary.spanDays?`${historySummary.spanDays} day${historySummary.spanDays===1?'':'s'} covered`:'No date range'}</div></div><div class="stat-card"><div class="stat-label">Net</div><div class="stat-value" style="font-size:16px;color:${historySummary.netTotal>=0?'var(--green)':'var(--red)'}">${historySummary.netTotal>=0?'+':'-'}${fmtShort(Math.abs(historySummary.netTotal))}</div><div class="stat-change">${historySummary.largest?`Largest: ${historySummary.largest.kind==='income'?'+':'-'}${fmtShort(historySummary.largest.amount)}`:'No transactions yet'}</div></div></div>`;
+  document.getElementById('history-summary').innerHTML=`<div class="stats-grid" style="margin-bottom:12px"><div class="stat-card"><div class="stat-label">Results</div><div class="stat-value" style="font-size:18px">${historyCards.length}</div><div class="stat-change">${esc(historySummary.periodLabel)}</div></div><div class="stat-card"><div class="stat-label">Expenses</div><div class="stat-value" style="font-size:16px;color:var(--red)">${fmtSigned(-expenseTotal)}</div><div class="stat-change">${historySummary.spanDays?`Avg/day ${fmt(historySummary.avgSpendPerDay)}`:'No spend yet'}</div></div><div class="stat-card"><div class="stat-label">Income</div><div class="stat-value" style="font-size:16px;color:var(--green)">${fmtSigned(incomeTotal)}</div><div class="stat-change">${historySummary.spanDays?`${historySummary.spanDays} day${historySummary.spanDays===1?'':'s'} covered`:'No date range'}</div></div><div class="stat-card"><div class="stat-label">Net</div><div class="stat-value" style="font-size:16px;color:${historySummary.netTotal>=0?'var(--green)':'var(--red)'}">${fmtSigned(historySummary.netTotal)}</div><div class="stat-change">${historySummary.largest?`Largest: ${fmtSigned(historySummary.largest.kind==='income'?historySummary.largest.amount:-historySummary.largest.amount)}`:'No transactions yet'}</div></div></div>`;
   renderHistoryBulkBar(historyCards);const hcEl=document.getElementById('history-content');
   hcEl.innerHTML=renderHistoryCardsContent(historyCards,histGroupMode);syncHistoryDrawerState();const ihEl=document.getElementById('income-history');
   if(!incomes.length)ihEl.innerHTML='<div class="empty"><div class="empty-icon">💵</div><div class="empty-text">No extra income yet</div></div>';
@@ -3531,15 +3841,42 @@ function render(){
     return`<div class="goal-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="font-weight:700;font-size:14px">${esc(g.name)}${targetDateLine}</div><div style="margin-top:5px"><span style="font-size:11px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 8px;border-radius:999px">${badgeText}</span></div></div><div style="font-size:18px;font-weight:800;color:${barC}">${pct.toFixed(0)}%</div></div><div style="position:relative;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin-bottom:5px"><div style="height:100%;width:${pct}%;background:${barC};border-radius:6px;transition:width .4s"></div><div style="position:absolute;top:0;left:25%;width:1px;height:100%;background:rgba(255,255,255,.35)"></div><div style="position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(255,255,255,.35)"></div><div style="position:absolute;top:0;left:75%;width:1px;height:100%;background:rgba(255,255,255,.35)"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:10px"><span>${fmt(g.current)}</span><span>${fmt(g.target)}</span></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px"><div style="padding:7px 6px;background:var(--surface);border-radius:var(--radius-xs);text-align:center;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">Saved</div><div style="font-size:12px;font-weight:700;color:var(--green)">${fmtShort(g.current)}</div></div><div style="padding:7px 6px;background:var(--surface);border-radius:var(--radius-xs);text-align:center;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">To Go</div><div style="font-size:12px;font-weight:700">${fmtShort(left)}</div></div><div style="padding:7px 6px;background:var(--surface);border-radius:var(--radius-xs);text-align:center;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">Monthly</div><div style="font-size:12px;font-weight:700;color:var(--accent)">${g.monthly>0?fmtShort(g.monthly):'—'}</div></div></div>${etaLine}${lastLine}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openGoalContribution(${g.id})">🎯 Add${g.monthly>0?` ${fmtShort(g.monthly)}`:''}</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalHistory(${g.id})">History</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalEdit(${g.id})">Edit</button></div></div>`;
   }).join(''):'<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">No goals yet</div></div>';
   const _wishTotalCash=Object.values(nwBalances||{}).reduce((s,v)=>s+Number(v||0),0);
+  // Monthly savings rate: salary minus average spending over last 3 months
+  const _wishMonthlySavings=(()=>{
+    let total=0,count=0;
+    for(let i=1;i<=3;i++){
+      const d=new Date(filterMonth+'-01T00:00:00');d.setMonth(d.getMonth()-i);
+      const mk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const spent=getMonthSpent(mk);
+      if(spent>0){total+=spent;count++;}
+    }
+    const avgSpent=count>0?total/count:Number(salary||0)*0.8;
+    return Math.max(Number(salary||0)-avgSpent,0);
+  })();
   document.getElementById('wishlist').innerHTML=wishlist.length?wishlist.map(w=>{
     const days=Math.floor((new Date()-new Date(w.addedDate))/864e5);
     const addedFmt=new Date(w.addedDate).toLocaleDateString('en-PH',{month:'short',day:'numeric'});
     const pc={Low:'var(--text3)',Medium:'var(--amber)',Want:'var(--accent)','Need Soon':'var(--red)'};
     const pb={Low:'var(--surface2)',Medium:'var(--amber-soft)',Want:'var(--accent-soft)','Need Soon':'var(--red-soft)'};
     const bc=pc[w.priority]||'var(--text3)';const bbg=pb[w.priority]||'var(--surface2)';
-    const canAfford=_wishTotalCash>=Number(w.price||0);const needed=Math.max(Number(w.price||0)-_wishTotalCash,0);
-    const affordBadge=w.price>0?(canAfford?`<span style="font-size:11px;font-weight:700;color:var(--green);background:var(--green-soft);padding:3px 8px;border-radius:999px">✓ Affordable</span>`:`<span style="font-size:11px;font-weight:700;color:var(--amber);background:var(--amber-soft);padding:3px 8px;border-radius:999px">${fmtShort(needed)} more needed</span>`):'';
-    return`<div class="wish-card" style="display:block;border-left:3px solid ${bc}"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px"><div style="font-weight:700;font-size:14px">${esc(w.name)}</div><span style="font-size:11px;font-weight:700;color:${bc};background:${bbg};padding:3px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0">${w.priority}</span></div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">Added ${addedFmt} · ${days === 0 ? 'today' : days+'d ago'}</div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><div style="font-size:20px;font-weight:800;color:var(--amber)">${fmt(w.price)}</div>${affordBadge}</div><div style="display:flex;gap:8px"><button class="btn btn-sm btn-primary" style="flex:1" onclick="event.stopPropagation();buyWish(${w.id})">🛒 Buy Now</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();deleteWish(${w.id})">Remove</button></div></div>`;
+    const price=Number(w.price||0);
+    const canAfford=_wishTotalCash>=price;
+    const needed=Math.max(price-_wishTotalCash,0);
+    const affordBadge=price>0?(canAfford?`<span style="font-size:11px;font-weight:700;color:var(--green);background:var(--green-soft);padding:3px 8px;border-radius:999px">✓ Affordable</span>`:`<span style="font-size:11px;font-weight:700;color:var(--amber);background:var(--amber-soft);padding:3px 8px;border-radius:999px">${fmtShort(needed)} more needed</span>`):'';
+    // Affordability timeline
+    let affordHint='';
+    if(price>0&&!canAfford){
+      if(_wishMonthlySavings>0){
+        const months=Math.ceil(needed/_wishMonthlySavings);
+        const eta=new Date();eta.setMonth(eta.getMonth()+months);
+        const etaLabel=eta.toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+        const mo=months===1?'~1 month':`~${months} months`;
+        affordHint=`<div class="wish-afford-hint"><span class="wish-afford-icon">🗓</span><span class="wish-afford-text">${mo} at current savings rate · <strong>${etaLabel}</strong></span></div>`;
+      } else {
+        affordHint=`<div class="wish-afford-hint wish-afford-hint-warn"><span class="wish-afford-icon">⚠️</span><span class="wish-afford-text">Increase your monthly savings to reach this</span></div>`;
+      }
+    }
+    return`<div class="wish-card" style="display:block;border-left:3px solid ${bc}"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px"><div style="font-weight:700;font-size:14px">${esc(w.name)}</div><span style="font-size:11px;font-weight:700;color:${bc};background:${bbg};padding:3px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0">${w.priority}</span></div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">Added ${addedFmt} · ${days===0?'today':days+'d ago'}</div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:${affordHint?'8px':'12px'}"><div style="font-size:20px;font-weight:800;color:var(--amber)">${fmt(price)}</div>${affordBadge}</div>${affordHint?affordHint+'<div style="height:12px"></div>':''}<div style="display:flex;gap:8px"><button class="btn btn-sm btn-primary" style="flex:1" onclick="event.stopPropagation();buyWish(${w.id})">🛒 Buy Now</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();deleteWish(${w.id})">Remove</button></div></div>`;
   }).join(''):'<div class="empty"><div class="empty-icon">🛒</div><div class="empty-text">Wishlist empty 🏆</div></div>';
   const efM=budgets['Emergency Fund (Digital Bank)']||0;const ef3=monthlyExp*3,ef6=monthlyExp*6;const efG=goals.find(g=>g.name.toLowerCase().includes('emergency'));const efC=efG?efG.current:0;const efProgress=ef6>0?Math.min(efC/ef6*100,100):0;const efGap=Math.max(ef6-efC,0);const efGap3=Math.max(ef3-efC,0);const efSafeExtra=Math.max(Math.min(Math.floor(Math.max(forecast.projectedBalance,0)*0.35/100)*100,efGap),0);const efMonthsLeft=efM>0&&efGap>0?Math.ceil(efGap/efM):0;const efMonthsCovered=monthlyExp>0?Math.min(efC/monthlyExp,6):0;const efBarColor=efC>=ef6?'var(--green)':efC>=ef3?'var(--blue)':efC>0?'var(--accent)':'var(--border)';const efBadgeText=efC>=ef6?'Fully Covered':efC>=ef3?'Basic Safety Reached':efC>0?'Building':'Not Started';const efBadgeColor=efC>=ef6?'var(--green)':efC>=ef3?'var(--blue)':efC>0?'var(--amber)':'var(--text3)';const efBadgeBg=efC>=ef6?'var(--green-soft)':efC>=ef3?'var(--blue-soft)':efC>0?'var(--amber-soft)':'var(--surface2)';const efEtaStr=efM>0&&efGap>0?(()=>{const d=new Date();d.setMonth(d.getMonth()+Math.ceil(efGap/efM));return d.toLocaleDateString('en-PH',{month:'short',year:'numeric'})})():null;const efActionBtns=efG?`<button class="btn btn-sm btn-primary" onclick="openGoalContribution(${efG.id})">🎯 Add Money</button><button class="btn btn-sm btn-ghost" onclick="openGoalHistory(${efG.id})">View History</button>`:`<button class="btn btn-primary" onclick="document.getElementById('g-name').value='Emergency Fund';document.getElementById('g-target').value=${Math.round(ef6)};document.getElementById('g-current').value=0;document.getElementById('g-monthly').value=${Math.round(efM||1000)};openModal('modal-add-goal')">Create Emergency Fund Goal</button>`;document.getElementById('ef-calc').innerHTML=`<div style="display:grid;gap:12px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Coverage</div><div style="font-size:26px;font-weight:800;line-height:1">${efMonthsCovered.toFixed(1)}<span style="font-size:14px;font-weight:600;color:var(--text3)"> / 6 months</span></div>${efC>0?`<div style="font-size:13px;color:var(--text2);margin-top:3px">${fmt(efC)} saved</div>`:''}</div><span style="font-size:11px;font-weight:700;color:${efBadgeColor};background:${efBadgeBg};padding:5px 10px;border-radius:999px;white-space:nowrap;flex-shrink:0">${efBadgeText}</span></div><div style="position:relative;height:14px;margin-bottom:24px"><div style="height:14px;background:var(--border);border-radius:7px;overflow:hidden"><div style="height:100%;width:${efProgress}%;background:${efBarColor};border-radius:7px;transition:width .4s"></div></div><div style="position:absolute;top:-2px;left:50%;transform:translateX(-50%);width:2px;height:18px;background:var(--amber);border-radius:1px;opacity:.8"></div><div style="position:absolute;top:17px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--amber);font-weight:700;white-space:nowrap">3 months</div><div style="position:absolute;top:17px;right:0;font-size:10px;color:var(--text3);white-space:nowrap">${fmtShort(ef6)}</div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><div style="padding:8px 6px;background:var(--surface2);border-radius:var(--radius-xs);text-align:center"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">Saved</div><div style="font-size:12px;font-weight:700;color:${efC>0?'var(--green)':'var(--text2)'}">${fmtShort(efC)||'₱0'}</div></div><div style="padding:8px 6px;background:var(--surface2);border-radius:var(--radius-xs);text-align:center"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">To 3 months</div><div style="font-size:12px;font-weight:700;color:${efC>=ef3?'var(--green)':'inherit'}">${efC>=ef3?'✓ Done':fmtShort(efGap3)}</div></div><div style="padding:8px 6px;background:var(--surface2);border-radius:var(--radius-xs);text-align:center"><div style="font-size:10px;color:var(--text3);margin-bottom:2px">To 6 months</div><div style="font-size:12px;font-weight:700;color:${efC>=ef6?'var(--green)':'inherit'}">${efC>=ef6?'✓ Done':fmtShort(efGap)}</div></div></div>${efM>0?`<div style="font-size:12px;color:var(--text2);padding:10px 12px;background:var(--surface2);border-radius:var(--radius-xs)">Monthly budget: <strong>${fmtShort(efM)}</strong>${efEtaStr?` · Full coverage est. <strong>${efEtaStr}</strong>`:efC>=ef6?' · Goal reached 🎉':' · Not enough to cover fully'}</div>`:`<div style="font-size:12px;color:var(--amber);padding:10px 12px;background:var(--amber-soft);border-radius:var(--radius-xs)">Set a monthly budget in Settings to see your coverage timeline.</div>`}<div style="display:flex;gap:8px;flex-wrap:wrap">${efActionBtns}</div></div>`;
 
@@ -3549,7 +3886,8 @@ function render(){
   const paidOffDebts=getPaidOffDebts();
   const renderDebtCard=(d,paidOff=false)=>{const remaining=Math.max(Number(d.total||0),0);const mo=d.payment>0?Math.ceil(remaining/d.payment):Infinity;const isTarget=!paidOff&&debtPayoffData.targetDebt&&debtPayoffData.targetDebt.id===d.id;const strategyBadge=debtPayoffSettings.method==='minimum'?'Minimum':debtPayoffSettings.method==='avalanche'?'Avalanche target':'Snowball target';const isPaid=d.lastPaidMonth===currentMonthKey();const paymentSummary=getDebtPaymentSummary(d.id);const latest=paymentSummary.latest;const clearedDate=d.lastPaidDate||(latest&&latest.date)||'';const badges=[];if(isTarget)badges.push(`<span style="font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:3px 8px;border-radius:999px;display:inline-block;margin-top:4px">${strategyBadge}</span>`);if(paidOff)badges.push(`<span style="font-size:10px;font-weight:700;color:var(--green);background:var(--green-soft);padding:3px 8px;border-radius:999px;display:inline-block;margin-top:4px">Paid Off</span>`);else if(isPaid)badges.push(`<span style="font-size:10px;font-weight:700;color:var(--green);background:var(--green-soft);padding:3px 8px;border-radius:999px;display:inline-block;margin-top:4px">Paid this month</span>`);const summaryBody=paymentSummary.count?`<div style="display:grid;gap:4px;font-size:12px;color:var(--text2)">${paidOff&&clearedDate?`<div><strong>Paid off on:</strong> ${esc(formatDateTime({date:clearedDate}))}</div>`:''}<div><strong>Last:</strong> ${esc(formatDateTime(latest))} - ${fmt(latest.amount)}${getDebtPaymentFeeMeta(latest)}</div><div><strong>Total paid:</strong> ${fmt(paymentSummary.total)}</div><div><strong>${paymentSummary.count} payment${paymentSummary.count!==1?'s':''}</strong></div></div>`:`<div style="font-size:12px;color:var(--text3)">${paidOff?'No payment history saved':'No payments yet'}</div>`;const meta=paidOff?`${clearedDate?`Paid off on ${esc(formatDateTime({date:clearedDate}))}`:'Balance cleared'}${d.lastPaidAmount?` - Last payment ${fmt(d.lastPaidAmount)}`:''}`:`${fmt(d.payment)}/mo ${d.interest?`· ${d.interest}% APR`:''} ${d.due?`· Due: ${esc(d.due)}`:''} · ${d.payment>0?`~${mo} mo`:'—'}`;let deadlineBanner='';if(d.deadline&&!paidOff){const dl=new Date(d.deadline);dl.setHours(0,0,0,0);const td=new Date();td.setHours(0,0,0,0);const daysLeft=Math.round((dl-td)/864e5);const dlFmt=dl.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});let dlColor,dlBg,dlLabel;if(daysLeft<0){dlColor='var(--red)';dlBg='var(--red-soft)';dlLabel=`Overdue by ${Math.abs(daysLeft)} day${Math.abs(daysLeft)!==1?'s':''}`;}else if(daysLeft===0){dlColor='var(--red)';dlBg='var(--red-soft)';dlLabel='Due today!';}else if(daysLeft<=7){dlColor='var(--red)';dlBg='var(--red-soft)';dlLabel=`${daysLeft} day${daysLeft!==1?'s':''} left`;}else if(daysLeft<=30){dlColor='var(--amber)';dlBg='var(--amber-soft)';dlLabel=`${daysLeft} days left`;}else{dlColor='var(--green)';dlBg='var(--green-soft)';dlLabel=`${daysLeft} days left`;}deadlineBanner=`<div style="margin-top:8px;padding:8px 10px;background:${dlBg};border-radius:var(--radius-xs);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;color:${dlColor};font-weight:700">📅 Pay by ${dlFmt}</div><div style="font-size:11px;color:${dlColor};font-weight:600;background:${dlBg};padding:3px 8px;border-radius:999px;border:1px solid ${dlColor}">${dlLabel}</div></div>`;}
 const totalPaid=paymentSummary.total||0;const originalTotal=remaining+totalPaid;const paidPct=originalTotal>0?Math.min(totalPaid/originalTotal*100,100):0;const borderColor=paidOff?'var(--green)':isPaid?'var(--amber)':'var(--red)';const progressBar=!paidOff&&originalTotal>0&&totalPaid>0?`<div style="margin:8px 0 4px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px">Progress</span><span style="font-size:10px;font-weight:700;color:var(--green)">${Math.round(paidPct)}% paid</span></div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${paidPct}%;background:var(--green);border-radius:2px;transition:width .4s"></div></div></div>`:paidOff?`<div style="margin:6px 0 4px"><div style="height:4px;background:var(--green-soft);border-radius:2px"><div style="height:100%;width:100%;background:var(--green);border-radius:2px"></div></div></div>`:'';
-return`<div class="debt-card" style="border-left:3px solid ${borderColor}"><div style="display:flex;justify-content:space-between;margin-bottom:4px;gap:8px"><div style="min-width:0"><span style="font-weight:700">${esc(d.name)}</span> <span style="font-size:11px;color:var(--text3)">${esc(d.type)}</span>${badges.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${badges.join('')}</div>`:''}</div><div style="text-align:right;flex-shrink:0"><div style="font-weight:800;font-size:15px;color:${paidOff?'var(--green)':'var(--red)'}">${fmt(remaining)}</div>${!paidOff&&totalPaid>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${fmtShort(totalPaid)} paid</div>`:''}</div></div><div style="font-size:12px;color:var(--text3);margin-top:2px">${meta}</div>${progressBar}${deadlineBanner}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${paidOff?'':`<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDebtPayment(${d.id})">💳 Log Payment</button>`}<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtEdit(${d.id})">Edit</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtHistory(${d.id})">View History</button></div><div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Payment Summary</div>${summaryBody}</div></div>`};
+const _proj=!paidOff&&remaining>0?getDebtPayoffProjection(remaining,Number(d.payment||0),Number(d.interest||0)):null;const payoffSection=_proj&&_proj.isViable&&_proj.months>0?(()=>{const eta=_proj.payoffDate.toLocaleDateString('en-PH',{month:'short',year:'numeric'});const moLabel=_proj.months===1?'1 month':`${_proj.months} months`;const interestNote=_proj.totalInterest>0?`<span class="debt-tl-interest">+${fmtShort(_proj.totalInterest)} in interest</span>`:'<span class="debt-tl-interest debt-tl-interest-free">No interest</span>';return`<div class="debt-timeline"><div class="debt-tl-header"><span class="debt-tl-title">Payoff Timeline</span><span class="debt-tl-eta">📅 ${eta}</span></div><div class="debt-tl-bar-wrap"><div class="debt-tl-bar-track"><div class="debt-tl-bar-fill" style="width:${Math.max(paidPct,0)}%"></div></div><div class="debt-tl-bar-labels"><span>Now</span><span>${eta}</span></div></div><div class="debt-tl-meta"><span>~${moLabel} remaining</span>${interestNote}</div></div>`;})():'';
+return`<div class="debt-card" style="border-left:3px solid ${borderColor}"><div style="display:flex;justify-content:space-between;margin-bottom:4px;gap:8px"><div style="min-width:0"><span style="font-weight:700">${esc(d.name)}</span> <span style="font-size:11px;color:var(--text3)">${esc(d.type)}</span>${badges.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${badges.join('')}</div>`:''}</div><div style="text-align:right;flex-shrink:0"><div style="font-weight:800;font-size:15px;color:${paidOff?'var(--green)':'var(--red)'}">${fmt(remaining)}</div>${!paidOff&&totalPaid>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${fmtShort(totalPaid)} paid</div>`:''}</div></div><div style="font-size:12px;color:var(--text3);margin-top:2px">${meta}</div>${progressBar}${deadlineBanner}${payoffSection}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${paidOff?'':`<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDebtPayment(${d.id})">💳 Log Payment</button>`}<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtEdit(${d.id})">Edit</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtHistory(${d.id})">View History</button></div><div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Payment Summary</div>${summaryBody}</div></div>`};
   if(debts.length){
     const _dp=debtPayoffData;const _m=debtPayoffSettings.method||'snowball';const _chipStyle=(k)=>_m===k?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':'';
     const _recBanner=activeDebts.length&&!_dp.isOnRec?`<div style="padding:10px 12px;background:var(--amber-soft);border-radius:var(--radius-xs);border-left:3px solid var(--amber)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:3px">💡 Recommended: ${_dp.recMethod==='avalanche'?'Avalanche':_dp.recMethod==='snowball'?'Snowball':'Minimum Only'}</div><div style="font-size:12px;color:var(--text2);line-height:1.5">${_dp.recReason}</div></div><button class="btn btn-sm" style="font-size:11px;white-space:nowrap;background:var(--amber);color:#fff;border:none;flex-shrink:0" onclick="setDebtPayoffMethod('${_dp.recMethod}')">Switch</button></div></div>`:(activeDebts.length&&_dp.isOnRec?`<div style="padding:10px 12px;background:var(--green-soft);border-radius:var(--radius-xs)"><div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:2px">✓ Optimal strategy selected</div><div style="font-size:12px;color:var(--text2)">${_dp.recReason}</div></div>`:'');

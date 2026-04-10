@@ -45,6 +45,7 @@ There is no package manager, bundler, backend, or test setup in this repository.
 ### History
 
 - Unified expense and income history
+- Summary cards with exact expense, income, net, average-per-day, and largest-transaction amounts
 - Search, category, account, type, amount, and date-range filters
 - Day, week, month, and custom range filtering
 - Grouping by transaction, day, category, or account
