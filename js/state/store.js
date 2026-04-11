@@ -1,4 +1,4 @@
-let customCats=[],salary=100000,budgets={},entries=[],nextId=1,nwAccounts=[...DEFAULT_NW_ACCOUNTS];
+let customCats=[],salary=20000,budgets={},entries=[],nextId=1,nwAccounts=[...DEFAULT_NW_ACCOUNTS];
 let incomes=[],nextIncId=1,goals=[],nextGoalId=1,transfers=[],nextTransferId=1,lastTransferUndo=null;
 let nwBalances={bdo:0,gcash:0,mp2:0},nwHistory=[];
 let darkMode=false,debts=[],nextDebtId=1;

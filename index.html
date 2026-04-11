@@ -153,7 +153,7 @@
     <div class="input-row"><div class="input-group" id="tour-target-account"><label class="input-label">Account</label><select class="input" id="f-account" onchange="updateAddPreviews()"></select></div><div class="input-group" id="tour-target-date"><label class="input-label">Date</label><input type="date" class="input" id="f-date"></div></div>
     <div class="input-group" id="tour-target-note"><label class="input-label">Note (optional)</label><input type="text" class="input" id="f-note" placeholder="e.g. SM Supermarket"></div>
     <div class="add-helper-grid">
-      <div id="expense-balance-preview" class="add-balance-preview"></div>
+      <div id="expense-balance-preview" class="add-balance-preview" style="display:none"></div>
       <div><div class="add-subtitle">Recent suggestions</div><div id="expense-suggestions"></div></div>
       <div><div class="add-subtitle">Favorite templates</div><div id="expense-templates" class="add-suggestion-row"></div></div>
     </div>
@@ -175,7 +175,7 @@
       <div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="inc-note" placeholder="e.g. Logo design"></div>
     </div>
     <div class="add-helper-grid">
-      <div id="income-balance-preview" class="add-balance-preview"></div>
+      <div id="income-balance-preview" class="add-balance-preview" style="display:none"></div>
       <div><div class="add-subtitle">Recent income suggestions</div><div id="income-suggestions"></div></div>
     </div>
     <button class="btn btn-success" onclick="addIncome()">Add Income</button>
