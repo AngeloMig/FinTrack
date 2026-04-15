@@ -49,6 +49,13 @@ function loadData(){
           }
         };
       }
+      // Migration: ensure XM Wallet account exists with key 'xm'
+      if(!nwAccounts.find(a=>a.key==='xm')){
+        nwAccounts.push({key:'xm',name:'XM Wallet',icon:'📊'});
+        if(nwBalances['xm']===undefined)nwBalances['xm']=0;
+      }
+      // Migration: ensure Trading Loss budget exists
+      if(budgets['Trading Loss']===undefined)budgets['Trading Loss']=1500;
     }
   }catch(e){}
 }

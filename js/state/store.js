@@ -1,6 +1,6 @@
 let customCats=[],salary=20000,budgets={},entries=[],nextId=1,nwAccounts=[...DEFAULT_NW_ACCOUNTS];
 let incomes=[],nextIncId=1,goals=[],nextGoalId=1,transfers=[],nextTransferId=1,lastTransferUndo=null;
-let nwBalances={bdo:0,gcash:0,mp2:0},nwHistory=[];
+let nwBalances={bdo:0,gcash:0,mp2:0,xm:0},nwHistory=[];
 let darkMode=false,debts=[],nextDebtId=1;
 let wishlist=[],nextWishId=1,journal=[],nextJournalId=1,recurring=[],nextRecurringId=1;
 let editingCat=null,deletingCat=null,editingGoalId=null,editingDebtId=null,editingEntryId=null,editingIncomeId=null,editingNetWorthKey=null;
@@ -9,7 +9,7 @@ let addFlowState={lastExpenseByCategory:{},favoriteExpenseTemplates:[{label:'Lun
 let notificationsSeenAt=0;
 let paySchedule={mode:'twice',days:[5,20]};
 let onboardStep=0;
-let alertSettings={budgetThreshold:80,overspendForecast:true,recurringDueSoon:true,spikeAlerts:true,lowBalanceAlerts:true};
+let alertSettings={budgetThreshold:80,overspendForecast:true,recurringDueSoon:true,spikeAlerts:true,lowBalanceAlerts:true,badRealityAlerts:true};
 let showMoreExpanded=false;
 let greetingCardIndex=0;
 let greetingAutoSlideTimer=null;
@@ -18,6 +18,7 @@ let debtPayments=[],nextDebtPaymentId=1,activeDebtPaymentDebtId=null;
 let goalContributions=[],nextGoalContributionId=1,activeGoalContributionGoalId=null;
 let historySavedPresets=[],nextHistoryPresetId=1;
 let historyBulkMode=false,historySelectedKeys=new Set(),historyVisibleSelectionKeys=[],historyActivePresetId=null;
+let historyVisibleCount=20,historyLastViewKey='';
 let historyDrawerOpen=false;
 let budgetStrategy={
   preset:'balanced',
