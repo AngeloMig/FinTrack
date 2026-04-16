@@ -149,7 +149,15 @@
     <div class="card-header"><span class="card-title">New Expense <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-add-expense')">i</button><span class="tooltip-pop" id="tip-add-expense"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span></div>
     <div class="input-group" id="tour-target-amount"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="f-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
     <div class="input-group" id="tour-target-category"><label class="input-label">Category</label><select class="input" id="f-cat" onchange="toggleCustom();updateAddPreviews();renderExpenseSuggestions()"></select></div>
-    <div class="input-group" id="custom-cat-wrap" style="display:none"><label class="input-label">Custom Category Name</label><input type="text" class="input" id="f-custom-cat" placeholder="e.g. Birthday Gift"></div>
+    <div class="input-group" id="custom-cat-wrap" style="display:none"><label class="input-label">Custom Category Name</label><input type="text" class="input" id="f-custom-cat" placeholder="e.g. Birthday Gift" oninput="onCustomCatInput()"></div>
+    <div class="input-group" id="custom-cat-group-wrap" style="display:none"><label class="input-label">Tag as</label>
+      <div class="cat-group-picker">
+        <button type="button" class="cat-group-btn" id="cgb-needs" onclick="selectCatGroup('needs')">🟢 Need</button>
+        <button type="button" class="cat-group-btn active-wants" id="cgb-wants" onclick="selectCatGroup('wants')">🔵 Want</button>
+        <button type="button" class="cat-group-btn" id="cgb-savings" onclick="selectCatGroup('savings')">🟣 Savings</button>
+      </div>
+      <div id="cat-group-suggestion" style="font-size:11px;color:var(--text3);margin-top:5px;display:none"></div>
+    </div>
     <div class="input-row"><div class="input-group" id="tour-target-account"><label class="input-label">Account</label><select class="input" id="f-account" onchange="updateAddPreviews()"></select></div><div class="input-group" id="tour-target-date"><label class="input-label">Date</label><input type="date" class="input" id="f-date"></div></div>
     <div class="input-group" id="tour-target-note"><label class="input-label">Note (optional)</label><input type="text" class="input" id="f-note" placeholder="e.g. SM Supermarket"></div>
     <div class="add-helper-grid">
@@ -293,10 +301,24 @@
   <div class="card"><div class="card-header"><span class="card-title">50/30/20 Rule</span></div><div id="rule-content"></div></div>
   <div class="card">
     <div class="card-header">
+      <span class="card-title">Budget Review</span>
+      <span class="card-badge">This month</span>
+    </div>
+    <div id="budget-review-card"></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
       <span class="card-title">Budget Strategy</span>
       <span class="card-badge">Needs / Wants / Savings</span>
     </div>
     <div id="budget-strategy-card"></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Month Close Wizard</span>
+      <span class="card-badge">Preview</span>
+    </div>
+    <div id="month-close-card"></div>
   </div>
   <div class="card"><div class="card-header"><span class="card-title">Settings</span><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="tour-target-smart-setup" onclick="openModal('modal-smart-budget')">Smart Setup</button><button class="btn btn-sm btn-ghost" onclick="openSmartRefresh()">Smart Refresh</button><button class="btn btn-sm btn-ghost" id="tour-target-rebalance" onclick="openBudgetRebalance()">Rebalance</button></div></div>
     <div id="settings-content"></div>
@@ -394,6 +416,13 @@
 
 <div class="modal-overlay" id="modal-edit-cat" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Edit Category</h3>
   <div class="input-group"><label class="input-label">Name</label><input type="text" class="input" id="modal-edit-name"></div>
+  <div class="input-group"><label class="input-label">Tag as</label>
+    <div class="cat-group-picker">
+      <button type="button" class="cat-group-btn" id="ecgb-needs" onclick="selectEditCatGroup('needs')">🟢 Need</button>
+      <button type="button" class="cat-group-btn" id="ecgb-wants" onclick="selectEditCatGroup('wants')">🔵 Want</button>
+      <button type="button" class="cat-group-btn" id="ecgb-savings" onclick="selectEditCatGroup('savings')">🟣 Savings</button>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-edit-cat')">Cancel</button><button class="btn btn-primary" onclick="confirmEdit()">Save</button></div>
 </div></div>
 
@@ -401,6 +430,12 @@
   <p id="modal-delete-msg" style="font-size:13px;margin-bottom:8px"></p>
   <p style="font-size:12px;color:var(--text3)">Transactions will move to Miscellaneous / Buffer.</p>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-delete-cat')">Cancel</button><button class="btn btn-danger" onclick="confirmDelete()">Delete</button></div>
+</div></div>
+
+<div class="modal-overlay" id="modal-cat-sort" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Sort Categories</h3>
+  <p style="font-size:13px;color:var(--text2);margin-bottom:4px;line-height:1.5">Tag each custom category so the app knows how to count it in your budget split and financial health score.</p>
+  <div id="cat-sort-list" style="max-height:55vh;overflow-y:auto;margin-top:8px"></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-cat-sort')">Cancel</button><button class="btn btn-primary" onclick="saveCatSort()">Save Tags</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-add-journal" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>New Journal Entry</h3>
@@ -470,6 +505,10 @@
 
 <div class="modal-overlay" id="modal-info" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="info-title">About</h3><div id="info-body" style="font-size:13px;color:var(--text2);line-height:1.7"></div><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-info')">Got it</button></div></div></div>
 
+<div class="modal-overlay" id="modal-app-alert" onclick="closeModal('modal-app-alert')"><div class="modal"><div class="modal-handle"></div><h3 id="app-alert-title">Notice</h3><p id="app-alert-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-app-alert')">OK</button></div></div></div>
+
+<div class="modal-overlay" id="modal-app-confirm"><div class="modal"><div class="modal-handle"></div><h3 id="app-confirm-title">Confirm</h3><p id="app-confirm-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-ghost" onclick="_appConfirmCancel()">Cancel</button><button class="btn btn-primary" id="app-confirm-ok" onclick="_appConfirmOk()">OK</button></div></div></div>
+
 <div class="modal-overlay" id="modal-nw-account" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="nw-modal-title">Add Net Worth Account</h3>
   <div class="input-row">
     <div class="input-group"><label class="input-label">Icon</label><select class="input" id="nw-acc-icon"><option>🏦</option><option>📱</option><option>💳</option><option>💵</option><option>📈</option><option>🏠</option><option>🚗</option><option>🪙</option><option>💼</option><option>🎯</option></select></div>
@@ -523,6 +562,8 @@
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-budget-rebalance')">Cancel</button><button class="btn btn-primary" onclick="applyBudgetRebalance()">Apply Rebalance</button></div>
 
 </div></div>
+
+<div class="modal-overlay month-close-sheet" id="modal-month-close" onclick="if(event.target===this)closeModal(this.id)"><div class="modal month-close-modal"><div class="modal-handle"></div><div id="month-close-content"></div><div class="modal-actions month-close-actions"><button class="btn btn-ghost" onclick="closeModal('modal-month-close')">Close</button><button class="btn btn-primary" onclick="closeModal('modal-month-close');showTab('history')">Open History</button></div></div></div>
 
 <div class="modal-overlay" id="modal-smart-refresh" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div>
   <div class="smart-refresh-hero">
