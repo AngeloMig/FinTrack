@@ -287,7 +287,7 @@
 <div class="section" id="sec-more"><div id="tour-target-more-root"></div>
   <div class="card" id="tour-target-networth-card"><div class="card-header"><span class="card-title">Net Worth <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-more')">i</button><span class="tooltip-pop" id="tip-more"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="openTransferModal()">Transfer</button><button class="btn btn-sm btn-ghost" id="tour-target-networth-add" onclick="openNetWorthAdd()">+ Add</button></div></div>
     <div id="nw-inputs"></div>
-    <button class="btn btn-success" id="tour-target-networth-save" style="margin-top:14px" onclick="saveNetWorth()">Save Balances</button>
+    <button class="btn btn-primary btn-sm nw-save-btn" id="tour-target-networth-save" onclick="saveNetWorth()">Save Balances</button>
     <div id="nw-total"></div>
   </div>
   <div class="card"><div class="card-header"><span class="card-title">Net Worth History</span></div><div id="nw-chart"></div></div>
@@ -510,11 +510,27 @@
 <div class="modal-overlay" id="modal-app-confirm"><div class="modal"><div class="modal-handle"></div><h3 id="app-confirm-title">Confirm</h3><p id="app-confirm-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-ghost" onclick="_appConfirmCancel()">Cancel</button><button class="btn btn-primary" id="app-confirm-ok" onclick="_appConfirmOk()">OK</button></div></div></div>
 
 <div class="modal-overlay" id="modal-nw-account" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="nw-modal-title">Add Net Worth Account</h3>
+  <div class="input-group" style="margin-bottom:14px">
+    <label class="input-label">Account Type</label>
+    <div class="nw-type-toggle">
+      <button type="button" class="nw-type-btn active" id="nw-type-asset" onclick="setNwAccountType('asset')">💰 Asset</button>
+      <button type="button" class="nw-type-btn" id="nw-type-credit" onclick="setNwAccountType('credit_card')">💳 Credit Card</button>
+    </div>
+  </div>
   <div class="input-row">
     <div class="input-group"><label class="input-label">Icon</label><select class="input" id="nw-acc-icon"><option>🏦</option><option>📱</option><option>💳</option><option>💵</option><option>📈</option><option>🏠</option><option>🚗</option><option>🪙</option><option>💼</option><option>🎯</option></select></div>
-    <div class="input-group"><label class="input-label">Opening Balance (₱)</label><input type="number" class="input" id="nw-acc-balance" placeholder="0"></div>
+    <div class="input-group" id="nw-acc-balance-row"><label class="input-label">Opening Balance (₱)</label><input type="number" class="input" id="nw-acc-balance" placeholder="0"></div>
   </div>
   <div class="input-group"><label class="input-label">Account Name</label><input type="text" class="input" id="nw-acc-name" placeholder="e.g. Maya Savings"></div>
+  <div class="input-group" id="nw-cc-limit-row" style="display:none">
+    <label class="input-label">Credit Limit (₱)</label>
+    <input type="number" class="input" id="nw-cc-limit" placeholder="e.g. 15000">
+  </div>
+  <div class="input-group" id="nw-link-debt-row" style="display:none">
+    <label class="input-label">Link to Debt</label>
+    <select class="input" id="nw-linked-debt"><option value="">No debt linked</option></select>
+    <div style="font-size:11px;color:var(--text3);margin-top:5px">Balance will auto-sync when payments are logged.</div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-nw-account')">Cancel</button><button class="btn btn-ghost btn-sm" id="nw-transfer-btn" style="display:none" onclick="openTransferFromEditingAccount()">Transfer</button><button class="btn btn-danger btn-sm" id="nw-delete-btn" style="display:none" onclick="deleteNetWorthAccount()">Delete</button><button class="btn btn-primary" onclick="saveNetWorthAccount()">Save</button></div>
 </div></div>
 

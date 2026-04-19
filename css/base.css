@@ -158,11 +158,11 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
   .greeting-mini-stats{grid-template-columns:1fr}
 }
 
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;transition:var(--transition)}
-.stat-card:hover{box-shadow:var(--shadow)}
-.stat-label{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
-.stat-value{font-size:20px;font-weight:800;margin-top:4px;letter-spacing:-.5px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-bottom:12px;background:var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.stat-card{background:var(--surface);padding:12px 14px;transition:var(--transition)}
+.stat-card:hover{background:var(--surface2)}
+.stat-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:18px;font-weight:800;margin-top:3px;letter-spacing:-.4px}
 .stat-change{font-size:11px;margin-top:2px;font-weight:500}
 
 .progress{margin-bottom:14px}
@@ -309,6 +309,7 @@ body.history-drawer-open{overflow:hidden}
 .cashflow-summary-title{font-size:12px;font-weight:800;margin-bottom:2px}
 .cashflow-summary-body{font-size:12px;color:var(--text2);line-height:1.5}
 
+/* existing */
 .cat-groceries{background:#dcfce7;color:#16a34a}.cat-transport{background:#dbeafe;color:#2563eb}
 .cat-entertainment{background:#fce7f3;color:#db2777}.cat-health{background:#fee2e2;color:#dc2626}
 .cat-electric{background:#fef3c7;color:#d97706}.cat-water{background:#cffafe;color:#0891b2}
@@ -316,6 +317,22 @@ body.history-drawer-open{overflow:hidden}
 .cat-insurance{background:#ede9fe;color:#7c3aed}.cat-education{background:#e0e7ff;color:#4f46e5}
 .cat-personal{background:#fce7f3;color:#be185d}.cat-spotify{background:#d1fae5;color:#059669}
 .cat-income{background:#d1fae5;color:#059669}.cat-debt{background:#fee2e2;color:#dc2626}
+/* bills */
+.cat-internet{background:#ccfbf1;color:#0f766e}.cat-mobile{background:#ddd6fe;color:#5b21b6}
+/* subscriptions */
+.cat-streaming{background:#f3e8ff;color:#7e22ce}
+/* food */
+.cat-dining{background:#ffedd5;color:#c2410c}.cat-delivery{background:#fed7aa;color:#ea580c}.cat-coffee{background:#fef3c7;color:#92400e}
+/* transport */
+.cat-ridehailing{background:#e0f2fe;color:#0369a1}.cat-fuel{background:#fef9c3;color:#a16207}
+/* health */
+.cat-doctor{background:#ffe4e6;color:#be123c}.cat-gym{background:#d1fae5;color:#047857}
+/* personal */
+.cat-clothing{background:#f5f3ff;color:#6d28d9}.cat-grooming{background:#fdf2f8;color:#9d174d}.cat-skincare{background:#fff1f2;color:#9f1239}
+/* lifestyle */
+.cat-movies{background:#fdf4ff;color:#a21caf}.cat-hobbies{background:#eef2ff;color:#3730a3}.cat-gifts{background:#fff1f2;color:#e11d48}
+/* education */
+.cat-books{background:#eef2ff;color:#4338ca}
 
 @media(max-width:380px){
   .history-bulk-grid{grid-template-columns:1fr}
