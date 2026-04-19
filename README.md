@@ -97,10 +97,10 @@ There is no package manager, bundler, backend, or automated test setup in this r
 
 The app already covers a lot of surface area. The highest-value additions now are operational, not more tabs.
 
-- Monthly close workflow: a guided month-end review for missed recurring items, borrowed-money entries, debt-payoff target vs actual, and a final journal note
 - CSV or statement import: export already exists, but re-entering bank or wallet history manually will become the first real scale problem
 - Recurring batch-post assistant: let the user approve due recurring bills and income in one flow instead of marking them one by one
 - Calendar-level due-date view: combine salary receipts, recurring bills, debt due dates, and goal targets into one timeline
+- Transfer fee upper-bound validation: currently only blocks negative fees, not fees that exceed the transfer amount
 
 ## Data Storage
 
