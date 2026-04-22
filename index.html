@@ -147,8 +147,14 @@
 <div class="section" id="sec-add">
   <div class="card">
     <div class="card-header"><span class="card-title">New Expense <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-add-expense')">i</button><span class="tooltip-pop" id="tip-add-expense"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span></div>
-    <div class="input-group" id="tour-target-amount"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="f-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
-    <div class="input-group" id="tour-target-category"><label class="input-label">Category</label><select class="input" id="f-cat" onchange="toggleCustom();updateAddPreviews();renderExpenseSuggestions()"></select></div>
+    <div class="input-row">
+      <div class="input-group" id="tour-target-amount"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="f-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
+      <div class="input-group" id="tour-target-date"><label class="input-label">Date</label><input type="date" class="input" id="f-date"></div>
+    </div>
+    <div class="input-row">
+      <div class="input-group" id="tour-target-category"><label class="input-label">Category</label><select class="input" id="f-cat" onchange="toggleCustom();updateAddPreviews();renderExpenseSuggestions()"></select></div>
+      <div class="input-group" id="tour-target-account"><label class="input-label">Account</label><select class="input" id="f-account" onchange="updateAddPreviews()"></select></div>
+    </div>
     <div class="input-group" id="custom-cat-wrap" style="display:none"><label class="input-label">Custom Category Name</label><input type="text" class="input" id="f-custom-cat" placeholder="e.g. Birthday Gift" oninput="onCustomCatInput()"></div>
     <div class="input-group" id="custom-cat-group-wrap" style="display:none"><label class="input-label">Tag as</label>
       <div class="cat-group-picker">
@@ -158,14 +164,11 @@
       </div>
       <div id="cat-group-suggestion" style="font-size:11px;color:var(--text3);margin-top:5px;display:none"></div>
     </div>
-    <div class="input-row"><div class="input-group" id="tour-target-account"><label class="input-label">Account</label><select class="input" id="f-account" onchange="updateAddPreviews()"></select></div><div class="input-group" id="tour-target-date"><label class="input-label">Date</label><input type="date" class="input" id="f-date"></div></div>
-    <div class="input-group" id="tour-target-note"><label class="input-label">Note (optional)</label><input type="text" class="input" id="f-note" placeholder="e.g. SM Supermarket"></div>
-    <div class="add-helper-grid">
-      <div id="expense-balance-preview" class="add-balance-preview" style="display:none"></div>
-      <div><div class="add-subtitle">Recent suggestions</div><div id="expense-suggestions"></div></div>
-      <div><div class="add-subtitle">Favorite templates</div><div id="expense-templates" class="add-suggestion-row"></div></div>
+    <div id="expense-balance-preview" class="add-balance-preview" style="display:none;margin-bottom:8px"></div>
+    <div class="input-row add-last-row">
+      <div class="input-group" id="tour-target-note"><label class="input-label">Note (optional)</label><input type="text" class="input" id="f-note" placeholder="e.g. SM Supermarket"></div>
+      <button class="btn btn-primary" id="tour-target-submit-expense" onclick="addEntry()">Add Expense</button>
     </div>
-    <button class="btn btn-primary" id="tour-target-submit-expense" onclick="addEntry()">Add Expense</button>
   </div>
   <div class="card">
     <div class="card-header"><span class="card-title">Quick Add</span></div>
@@ -173,20 +176,19 @@
   </div>
   <div class="card">
     <div class="card-header"><span class="card-title">Extra Income <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-add-income')">i</button><span class="tooltip-pop" id="tip-add-income"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><span class="card-badge" style="background:var(--green-soft);color:var(--green)">+ Income</span></div>
-    <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="inc-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
-    <div class="input-row" style="margin-bottom:14px">
+    <div class="input-row">
+      <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="inc-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
+      <div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="inc-date"></div>
+    </div>
+    <div class="input-row">
       <div class="input-group"><label class="input-label">Source</label><select class="input" id="inc-source" onchange="renderIncomeSuggestions()"><option>Freelance</option><option>Bonus</option><option>13th Month Pay</option><option>Side Hustle</option><option>Gift/Reward</option><option>Salary</option><option>Refund</option><option>Borrowed Money</option><option>Loan Release</option><option>Cash Advance / Debt Proceeds</option><option>Other</option></select></div>
       <div class="input-group"><label class="input-label">Account</label><select class="input" id="inc-account" onchange="updateAddPreviews()"></select></div>
     </div>
-    <div class="input-row" style="margin-bottom:14px">
-      <div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="inc-date"></div>
+    <div id="income-balance-preview" class="add-balance-preview" style="display:none;margin-bottom:8px"></div>
+    <div class="input-row add-last-row">
       <div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="inc-note" placeholder="e.g. Logo design"></div>
+      <button class="btn btn-success" onclick="addIncome()">Add Income</button>
     </div>
-    <div class="add-helper-grid">
-      <div id="income-balance-preview" class="add-balance-preview" style="display:none"></div>
-      <div><div class="add-subtitle">Recent income suggestions</div><div id="income-suggestions"></div></div>
-    </div>
-    <button class="btn btn-success" onclick="addIncome()">Add Income</button>
   </div>
   <div class="card">
     <div class="card-header">
@@ -509,7 +511,10 @@
 
 <div class="modal-overlay" id="modal-app-confirm"><div class="modal"><div class="modal-handle"></div><h3 id="app-confirm-title">Confirm</h3><p id="app-confirm-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-ghost" onclick="_appConfirmCancel()">Cancel</button><button class="btn btn-primary" id="app-confirm-ok" onclick="_appConfirmOk()">OK</button></div></div></div>
 
-<div class="modal-overlay" id="modal-nw-account" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="nw-modal-title">Add Net Worth Account</h3>
+<div class="modal-overlay" id="modal-nw-account" onclick="if(event.target===this)closeModal(this.id)"><div class="modal nw-modal-sheet"><div class="modal-handle"></div><div class="nw-modal-head"><div><div class="nw-modal-kicker" id="nw-modal-kicker">Net Worth</div><h3 id="nw-modal-title">Add Account</h3></div></div>
+  <div id="nw-modal-preview"></div>
+  <div id="nw-bank-presets" class="nw-preset-row"></div>
+  <div class="nw-modal-form-card">
   <div class="input-group" style="margin-bottom:14px">
     <label class="input-label">Account Type</label>
     <div class="nw-type-toggle">
@@ -518,20 +523,21 @@
     </div>
   </div>
   <div class="input-row">
-    <div class="input-group"><label class="input-label">Icon</label><select class="input" id="nw-acc-icon"><option>🏦</option><option>📱</option><option>💳</option><option>💵</option><option>📈</option><option>🏠</option><option>🚗</option><option>🪙</option><option>💼</option><option>🎯</option></select></div>
-    <div class="input-group" id="nw-acc-balance-row"><label class="input-label">Opening Balance (₱)</label><input type="number" class="input" id="nw-acc-balance" placeholder="0"></div>
+    <div class="input-group"><label class="input-label">Icon</label><select class="input" id="nw-acc-icon" onchange="renderNwModalPreview()"><option>🏦</option><option>📱</option><option>💳</option><option>💵</option><option>📈</option><option>🏠</option><option>🚗</option><option>🪙</option><option>💼</option><option>🎯</option></select></div>
+    <div class="input-group" id="nw-acc-balance-row"><label class="input-label">Opening Balance (₱)</label><input type="number" class="input" id="nw-acc-balance" placeholder="0" oninput="renderNwModalPreview()"></div>
   </div>
-  <div class="input-group"><label class="input-label">Account Name</label><input type="text" class="input" id="nw-acc-name" placeholder="e.g. Maya Savings"></div>
+  <div class="input-group"><label class="input-label">Account Name</label><input type="text" class="input" id="nw-acc-name" placeholder="e.g. Maya Savings" oninput="renderNwModalPreview()"></div>
   <div class="input-group" id="nw-cc-limit-row" style="display:none">
     <label class="input-label">Credit Limit (₱)</label>
-    <input type="number" class="input" id="nw-cc-limit" placeholder="e.g. 15000">
+    <input type="number" class="input" id="nw-cc-limit" placeholder="e.g. 15000" oninput="renderNwModalPreview()">
   </div>
   <div class="input-group" id="nw-link-debt-row" style="display:none">
     <label class="input-label">Link to Debt</label>
-    <select class="input" id="nw-linked-debt"><option value="">No debt linked</option></select>
+    <select class="input" id="nw-linked-debt" onchange="syncNwAccountBalanceField()"><option value="">No debt linked</option></select>
     <div style="font-size:11px;color:var(--text3);margin-top:5px">Balance will auto-sync when payments are logged.</div>
   </div>
-  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-nw-account')">Cancel</button><button class="btn btn-ghost btn-sm" id="nw-transfer-btn" style="display:none" onclick="openTransferFromEditingAccount()">Transfer</button><button class="btn btn-danger btn-sm" id="nw-delete-btn" style="display:none" onclick="deleteNetWorthAccount()">Delete</button><button class="btn btn-primary" onclick="saveNetWorthAccount()">Save</button></div>
+  </div>
+  <div class="modal-actions nw-modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-nw-account')">Cancel</button><button class="btn btn-ghost btn-sm" id="nw-transfer-btn" style="display:none" onclick="openTransferFromEditingAccount()">Transfer</button><button class="btn btn-danger btn-sm" id="nw-delete-btn" style="display:none" onclick="deleteNetWorthAccount()">Delete</button><button class="btn btn-primary" onclick="saveNetWorthAccount()">Save</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-transfer" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Transfer Between Accounts</h3>
