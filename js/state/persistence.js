@@ -1,4 +1,4 @@
-function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState,historySavedPresets,nextHistoryPresetId}))}catch(e){console.error('FinTrack: failed to save data',e);if(e&&e.name==='QuotaExceededError'&&typeof showActionToast==='function'){showActionToast('Storage full','Your browser storage is full. Consider clearing old data or exporting a backup.','⚠️')}}}
+function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,notifSeenKey,nwViewMode,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState,historySavedPresets,nextHistoryPresetId}))}catch(e){console.error('FinTrack: failed to save data',e);if(e&&e.name==='QuotaExceededError'&&typeof showActionToast==='function'){showActionToast('Storage full','Your browser storage is full. Consider clearing old data or exporting a backup.','⚠️')}}}
 function loadData(){
   try{
     const raw=localStorage.getItem('ft_all');
@@ -30,6 +30,8 @@ function loadData(){
       if(d.nextTransferId)nextTransferId=d.nextTransferId;
       if(d.paySchedule)paySchedule=d.paySchedule;
       if(d.notificationsSeenAt)notificationsSeenAt=d.notificationsSeenAt;
+      if(d.notifSeenKey)notifSeenKey=d.notifSeenKey;
+      if(d.nwViewMode)nwViewMode=d.nwViewMode;
       if(d.debtPayoffSettings)debtPayoffSettings={...debtPayoffSettings,...d.debtPayoffSettings};
       if(d.debtPayments)debtPayments=d.debtPayments;
       if(d.nextDebtPaymentId)nextDebtPaymentId=d.nextDebtPaymentId;

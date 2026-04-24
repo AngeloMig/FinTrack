@@ -7,6 +7,9 @@ let editingCat=null,deletingCat=null,editingGoalId=null,editingDebtId=null,editi
 let viewYear=new Date().getFullYear();
 let addFlowState={lastExpenseByCategory:{},favoriteExpenseTemplates:[{label:'Lunch',category:'Groceries & Food',account:'gcash',note:'Lunch',amount:150},{label:'Grab',category:'Transport',account:'gcash',note:'Grab ride',amount:220},{label:'Groceries',category:'Groceries & Food',account:'bdo',note:'Groceries',amount:800},{label:'Coffee',category:'Personal / Self-Care',account:'gcash',note:'Coffee',amount:120}],lastIncomeBySource:{}};
 let notificationsSeenAt=0;
+let notifSeenKey='';
+let _lastNotifKey='';
+let nwViewMode='carousel';
 let paySchedule={mode:'twice',days:[5,20]};
 let onboardStep=0;
 let alertSettings={budgetThreshold:80,overspendForecast:true,recurringDueSoon:true,spikeAlerts:true,lowBalanceAlerts:true,badRealityAlerts:true};

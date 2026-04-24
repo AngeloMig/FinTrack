@@ -24,8 +24,12 @@
       <div class="notif-badge" id="notif-badge" style="display:none"></div>
       <div class="notif-panel" id="notif-panel">
         <div class="notif-head">
-          <div style="font-size:14px;font-weight:700">Notifications</div>
-          <button class="btn btn-sm btn-ghost" onclick="markNotificationsSeen()">Mark seen</button>
+          <div class="notif-head-left">
+            <span class="notif-head-icon">🔔</span>
+            <span class="notif-head-title">Notifications</span>
+            <span class="notif-head-count" id="notif-head-count"></span>
+          </div>
+          <button class="notif-close-btn" onclick="toggleNotifications()" aria-label="Close">✕</button>
         </div>
         <div id="notif-list"></div>
         <div class="notif-section">
@@ -287,7 +291,7 @@
 
 <!-- MORE -->
 <div class="section" id="sec-more"><div id="tour-target-more-root"></div>
-  <div class="card" id="tour-target-networth-card"><div class="card-header"><span class="card-title">Net Worth <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-more')">i</button><span class="tooltip-pop" id="tip-more"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="openTransferModal()">Transfer</button><button class="btn btn-sm btn-ghost" id="tour-target-networth-add" onclick="openNetWorthAdd()">+ Add</button></div></div>
+  <div class="card" id="tour-target-networth-card"><div class="card-header"><span class="card-title">Net Worth <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-more')">i</button><span class="tooltip-pop" id="tip-more"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><div style="display:flex;gap:6px;align-items:center"><button class="btn btn-sm btn-ghost nw-view-toggle" id="nw-view-toggle-btn" onclick="toggleNwView()" title="Toggle view"></button><button class="btn btn-sm btn-ghost" onclick="openTransferModal()">Transfer</button><button class="btn btn-sm btn-ghost" id="tour-target-networth-add" onclick="openNetWorthAdd()">+ Add</button></div></div>
     <div id="nw-inputs"></div>
     <button class="btn btn-primary btn-sm nw-save-btn" id="tour-target-networth-save" onclick="saveNetWorth()">Save Balances</button>
     <div id="nw-total"></div>
