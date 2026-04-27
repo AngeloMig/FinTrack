@@ -1,1 +1,200 @@
-/* Responsive rules can be moved here as you continue the refactor. */
+/* Final visual polish overrides */
+body{
+  background:
+    linear-gradient(180deg,#f7f9fc 0%,#eef3f8 100%);
+}
+.dark body,.dark{
+  background:#0c0f1a;
+}
+
+.app{
+  padding-bottom:118px;
+}
+
+.topbar{
+  margin:0 -16px;
+  padding:14px 16px 12px;
+  background:rgba(248,250,252,.88);
+  border-bottom:1px solid rgba(226,232,240,.72);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+.dark .topbar{
+  background:rgba(12,15,26,.86);
+  border-bottom-color:rgba(42,49,80,.74);
+}
+.topbar h1{
+  -webkit-text-fill-color:initial;
+  background:none;
+  color:#5b5ee7;
+  letter-spacing:-.02em;
+}
+
+.icon-btn{
+  background:rgba(255,255,255,.78);
+  box-shadow:0 8px 24px rgba(15,23,42,.06);
+}
+.dark .icon-btn{
+  background:rgba(255,255,255,.05);
+  box-shadow:none;
+}
+
+.card{
+  border-color:rgba(148,163,184,.24);
+  box-shadow:0 14px 34px rgba(15,23,42,.045);
+}
+.card:hover{
+  box-shadow:0 18px 42px rgba(15,23,42,.07);
+}
+.dark .card{
+  border-color:rgba(148,163,184,.16);
+  box-shadow:0 16px 42px rgba(0,0,0,.18);
+}
+.card-title{
+  color:var(--text);
+  font-weight:800;
+}
+
+.greeting{
+  background:linear-gradient(135deg,#2563eb 0%,#4f46e5 52%,#0f766e 100%);
+  box-shadow:0 22px 44px rgba(37,99,235,.24);
+}
+.greeting::before,.greeting::after{
+  display:none;
+}
+.greeting-kicker,
+.greeting-label,
+.greeting-subline,
+.greeting-progress-meta,
+.greeting .g-label,
+.greeting .g-sub{
+  color:rgba(255,255,255,.88);
+  opacity:1;
+}
+.greeting-value,
+.greeting .g-amount{
+  color:#fff;
+  opacity:1;
+  text-shadow:0 2px 16px rgba(15,23,42,.22);
+}
+.greeting-side-pill,
+.greeting-mini-stat,
+.greeting-tab,
+.greeting .g-tag{
+  background:rgba(255,255,255,.17);
+  border:1px solid rgba(255,255,255,.14);
+}
+.greeting-tab.active{
+  background:#fff;
+  color:#1d4ed8;
+}
+
+.bottom-nav{
+  left:50%;
+  bottom:12px;
+  width:calc(100% - 24px);
+  max-width:456px;
+  border:1px solid rgba(148,163,184,.28);
+  border-radius:24px;
+  padding:8px;
+  background:rgba(255,255,255,.88);
+  box-shadow:0 18px 42px rgba(15,23,42,.16);
+}
+.dark .bottom-nav{
+  background:rgba(22,27,46,.9);
+  border-color:rgba(148,163,184,.18);
+}
+.nav-item{
+  min-height:54px;
+  border-radius:18px;
+}
+.nav-item.active{
+  background:var(--accent-soft);
+}
+.nav-item.active .nav-icon{
+  background:transparent;
+}
+
+.stats-grid,
+.budget-category-list,
+.budget-split-panel,
+.budget-guidance,
+.budget-review-highlight,
+.budget-review-stat,
+.budget-review-progress,
+.budget-settings-footer,
+.history-group,
+.forecast-strip .fs-box{
+  border-color:rgba(148,163,184,.22);
+}
+
+.budget-split-panel,
+.budget-review-highlight,
+.budget-review-stat,
+.budget-review-progress,
+.budget-guidance,
+.budget-settings-footer{
+  background:linear-gradient(180deg,var(--surface),rgba(241,245,249,.58));
+}
+.dark .budget-split-panel,
+.dark .budget-review-highlight,
+.dark .budget-review-stat,
+.dark .budget-review-progress,
+.dark .budget-guidance,
+.dark .budget-settings-footer{
+  background:linear-gradient(180deg,var(--surface),rgba(30,37,64,.58));
+}
+.budget-split-bar{
+  height:8px;
+}
+.budget-section-header{
+  min-height:54px;
+}
+.budget-section-header:hover{
+  background:var(--surface2);
+}
+.budget-category-row{
+  background:rgba(255,255,255,.38);
+}
+.dark .budget-category-row{
+  background:rgba(255,255,255,.02);
+}
+.budget-category-row:hover{
+  background:var(--surface2);
+}
+.budget-category-progress{
+  height:5px;
+  max-width:none;
+}
+.budget-input-row .input{
+  max-width:112px;
+  font-weight:800;
+}
+.budget-stepper{
+  border:1px solid var(--border);
+}
+
+.btn-primary{
+  background:linear-gradient(135deg,#4f46e5,#2563eb);
+  border-color:transparent;
+}
+.btn-ghost{
+  background:rgba(255,255,255,.58);
+}
+.dark .btn-ghost{
+  background:rgba(255,255,255,.04);
+}
+
+@media(max-width:480px){
+  .app{padding-left:16px;padding-right:16px;padding-bottom:118px}
+  .topbar{margin-left:-16px;margin-right:-16px}
+  .card{padding:18px}
+  .greeting{padding:22px}
+  .greeting-value{font-size:31px}
+  .budget-category-row{gap:12px}
+}
+
+@media(max-width:360px){
+  .bottom-nav{width:calc(100% - 16px);bottom:8px}
+  .nav-item{font-size:9px;min-height:50px}
+}

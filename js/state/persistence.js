@@ -56,8 +56,8 @@ function loadData(){
         nwAccounts.push({key:'xm',name:'XM Wallet',icon:'📊'});
         if(nwBalances['xm']===undefined)nwBalances['xm']=0;
       }
-      // Migration: ensure Trading Loss budget exists
-      if(budgets['Trading Loss']===undefined)budgets['Trading Loss']=1500;
+      // Migration: ensure Trading Loss budget exists without adding spending by default.
+      if(budgets['Trading Loss']===undefined)budgets['Trading Loss']=0;
     }
   }catch(e){}
 }

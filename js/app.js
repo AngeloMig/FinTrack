@@ -268,10 +268,10 @@ function renderCashflowNotification(){
   }
   wrap.innerHTML = items.slice(0,3).map(item=>`
     <div class="notif-cf-item">
-      <div class="notif-cf-icon">${item.icon}</div>
+      <div class="notif-cf-icon">${esc(item.icon)}</div>
       <div class="notif-cf-main">
-        <div class="notif-cf-name">${item.name}</div>
-        <div class="notif-cf-meta">${item.dateLabel} • ${item.meta}</div>
+        <div class="notif-cf-name">${esc(item.name)}</div>
+        <div class="notif-cf-meta">${esc(item.dateLabel)} • ${esc(item.meta)}</div>
       </div>
       <div class="notif-cf-amount ${item.type}">${item.amount>=0?'+':''}${fmt(item.amount)}</div>
     </div>
@@ -293,10 +293,10 @@ function renderCashflowTimeline(){
     <div class="cashflow-list">
       ${items.map(item=>`
         <div class="cashflow-item">
-          <div class="cashflow-icon ${item.type}">${item.icon}</div>
+          <div class="cashflow-icon ${item.type}">${esc(item.icon)}</div>
           <div class="cashflow-main">
-            <div class="cashflow-name">${item.name}</div>
-            <div class="cashflow-meta">${item.dateLabel} • ${item.meta}</div>
+            <div class="cashflow-name">${esc(item.name)}</div>
+            <div class="cashflow-meta">${esc(item.dateLabel)} • ${esc(item.meta)}</div>
             <div class="cashflow-balance">Balance after this: ${fmt(item.runningBalance)}</div>
           </div>
           <div class="cashflow-amount ${item.type}">${item.amount>=0?'+':''}${fmt(item.amount)}</div>
@@ -1964,7 +1964,7 @@ function toggleBreakdown(type, chipEl){
       .filter(r => !r.paid);
 
     html = bills.length
-      ? `<div class="safe-spend-detail-title">Upcoming bills</div>` + bills.map(b=>`<div class="safe-spend-detail-item">• ${b.name} — ${fmtShort(b.amount)}</div>`).join('')
+      ? `<div class="safe-spend-detail-title">Upcoming bills</div>` + bills.map(b=>`<div class="safe-spend-detail-item">• ${esc(b.name)} — ${fmtShort(b.amount)}</div>`).join('')
       : '<div class="safe-spend-detail-title">Upcoming bills</div><div class="safe-spend-detail-item">No upcoming bills this month.</div>';
   }
 
@@ -2208,7 +2208,7 @@ function deleteTransfer(id){const t=transfers.find(x=>x.id===id);if(!t)return;co
 
 /* Onboarding */
 const ONBOARD_DEFAULT_ACCOUNTS=[{key:'cash',name:'Cash',icon:'💵',selected:true,balance:0},{key:'gcash',name:'GCash',icon:'📱',selected:true,balance:0},{key:'maya',name:'Maya',icon:'📲',selected:false,balance:0},{key:'bdo',name:'BDO Savings',icon:'🏦',selected:true,balance:0},{key:'unionbank',name:'UnionBank',icon:'💳',selected:false,balance:0}];
-const ONBOARD_DEFAULT_BILLS=[{name:'Electric Bill',amount:0,day:5,category:'Electric Bill',selected:true},{name:'Water',amount:0,day:10,category:'Water',selected:false},{name:'Spotify',amount:169,day:12,category:'Spotify',selected:false},{name:'Insurance / HMO',amount:0,day:15,category:'Insurance / HMO',selected:false}];
+const ONBOARD_DEFAULT_BILLS=[{name:'Electric Bill',amount:0,day:5,category:'Electric Bill',selected:true},{name:'Water Bill',amount:0,day:10,category:'Water Bill',selected:false},{name:'Spotify',amount:169,day:12,category:'Spotify',selected:false},{name:'Insurance / HMO',amount:0,day:15,category:'Insurance / HMO',selected:false}];
 let onboardAccounts=JSON.parse(JSON.stringify(ONBOARD_DEFAULT_ACCOUNTS));
 let onboardBills=JSON.parse(JSON.stringify(ONBOARD_DEFAULT_BILLS));
 
@@ -2222,7 +2222,60 @@ function renderOnboardAccounts(){const wrap=document.getElementById('ob-account-
 function renderOnboardBills(){const wrap=document.getElementById('ob-bills-list');if(!wrap)return;wrap.innerHTML=onboardBills.map((b,idx)=>`<div class="mini-item" style="align-items:flex-start"><label style="display:flex;align-items:center;gap:10px;flex:1;padding-top:8px"><input type="checkbox" ${b.selected?'checked':''} onchange="onboardBills[${idx}].selected=this.checked"><span>${b.name}</span></label><div style="display:grid;grid-template-columns:84px 72px;gap:6px"><input type="number" class="input" placeholder="Amount" value="${b.amount||0}" onchange="onboardBills[${idx}].amount=parseFloat(this.value)||0"><input type="number" class="input" placeholder="Day" min="1" max="31" value="${b.day||1}" onchange="onboardBills[${idx}].day=parseInt(this.value)||1"></div></div>`).join('')}
 function maybeStartOnboarding(){const firstRun=!localStorage.getItem('ft_onboarded');if(firstRun){document.getElementById('ob-salary').value=salary||'';document.getElementById('ob-pay-mode').value=paySchedule?.mode||'twice';if((paySchedule?.days||[]).length){document.getElementById('ob-pay-1').value=paySchedule.days[0]||5;document.getElementById('ob-pay-2').value=paySchedule.days[1]||20;document.getElementById('ob-pay-single').value=paySchedule.days[0]||30}renderOnboardAccounts();renderOnboardSalaryAccounts();const splits=paySchedule?.splits||[];if(splits[0]){document.getElementById('ob-pay-amt-1').value=splits[0].amount||'';document.getElementById('ob-pay-account-1').value=splits[0].account||onboardAccounts[0]?.key||''}if(splits[1]){document.getElementById('ob-pay-amt-2').value=splits[1].amount||'';document.getElementById('ob-pay-account-2').value=splits[1].account||onboardAccounts[1]?.key||onboardAccounts[0]?.key||''}toggleOnboardPayMode();syncOnboardSalarySplitAmounts();renderOnboardBills();onboardStep=0;renderOnboardingProgress();document.getElementById('onboard-overlay').classList.add('show')}}
 function skipOnboarding(){localStorage.setItem('ft_onboarded','1');document.getElementById('onboard-overlay').classList.remove('show')}
-function finishOnboarding(){const sal=parseFloat(document.getElementById('ob-salary').value)||0;if(sal<=0){showAlert('Enter your monthly salary.');return;}salary=sal;const mode=document.getElementById('ob-pay-mode').value;let days=[],splits=[];if(mode==='monthly'){const day=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-single').value)||30));const amount=parseFloat(document.getElementById('ob-pay-amt-1').value)||sal;const account=document.getElementById('ob-pay-account-1').value||onboardAccounts[0]?.key||'';days=[day];splits=[{day,amount,account}]}else{const d1=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-1').value)||5));const d2=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-2').value)||20));const a1=parseFloat(document.getElementById('ob-pay-amt-1').value)||Math.round(sal/2);const a2=parseFloat(document.getElementById('ob-pay-amt-2').value)||Math.max(0,sal-a1);const acc1=document.getElementById('ob-pay-account-1').value||onboardAccounts[0]?.key||'';const acc2=document.getElementById('ob-pay-account-2').value||onboardAccounts[1]?.key||onboardAccounts[0]?.key||'';splits=[{day:d1,amount:a1,account:acc1},{day:d2,amount:a2,account:acc2}].sort((a,b)=>a.day-b.day);days=splits.map(s=>s.day)}if(Math.round(splits.reduce((sum,s)=>sum+Number(s.amount||0),0))!==Math.round(sal)){showAlert('Your payday amounts should add up to your monthly salary.');return;}paySchedule={mode,days,splits};const requiredSalaryAccounts=new Set(splits.map(s=>s.account).filter(Boolean));onboardAccounts.forEach(a=>{if(requiredSalaryAccounts.has(a.key))a.selected=true});nwAccounts=onboardAccounts.filter(a=>a.selected).map(a=>({key:a.key,name:a.name,icon:a.icon}));if(!nwAccounts.length)nwAccounts=[{key:'cash',name:'Cash',icon:'💵'}];nwBalances={};nwAccounts.forEach(a=>{const found=onboardAccounts.find(x=>x.key===a.key);nwBalances[a.key]=found?Number(found.balance||0):0});recurring=recurring.filter(r=>!ONBOARD_DEFAULT_BILLS.some(b=>b.name===r.name));onboardBills.filter(b=>b.selected&&Number(b.amount||0)>0).forEach(b=>{recurring.push({id:nextRecurringId++,type:'bill',name:b.name,amount:Number(b.amount||0),day:parseInt(b.day)||1,category:b.category,lastPaid:''})});const totalBills=onboardBills.filter(b=>b.selected).reduce((s,b)=>s+Number(b.amount||0),0);const baseNeeds=Math.max(salary*0.5-totalBills,0);const baseWants=Math.max(salary*0.3-169,0);budgets['Electric Bill']=Number(onboardBills.find(b=>b.name==='Electric Bill'&&b.selected)?.amount||budgets['Electric Bill']||0);budgets['Water']=Number(onboardBills.find(b=>b.name==='Water'&&b.selected)?.amount||budgets['Water']||0);budgets['Spotify']=Number(onboardBills.find(b=>b.name==='Spotify'&&b.selected)?.amount||budgets['Spotify']||0);budgets['Insurance / HMO']=Number(onboardBills.find(b=>b.name==='Insurance / HMO'&&b.selected)?.amount||budgets['Insurance / HMO']||0);budgets['Groceries & Food']=Math.round(baseNeeds*0.6);budgets['Transport']=Math.round(baseNeeds*0.15);budgets['Health / Medical']=Math.round(baseNeeds*0.1);budgets['Miscellaneous / Buffer']=Math.round(baseNeeds*0.15);budgets['Entertainment']=Math.round(baseWants*0.55);budgets['Personal / Self-Care']=Math.round(baseWants*0.25);budgets['Education / Self-Improvement']=Math.round(baseWants*0.2);budgets['Savings (BDO)']=Math.max(Math.round(salary*0.1),0);budgets['Emergency Fund (Digital Bank)']=Math.max(Math.round(salary*0.05),0);budgets['Investments (MP2/UITF)']=Math.max(Math.round(salary*0.05),0);budgets['Big Purchases / Goals']=0;localStorage.setItem('ft_onboarded','1');saveData();document.getElementById('onboard-overlay').classList.remove('show');render();setTimeout(()=>{if(shouldStartTutorial())startTutorial()},350)}
+function finishOnboarding(){
+  const sal=parseFloat(document.getElementById('ob-salary').value)||0;
+  if(sal<=0){showAlert('Enter your monthly salary.');return;}
+  salary=sal;
+  const mode=document.getElementById('ob-pay-mode').value;
+  let days=[],splits=[];
+  if(mode==='monthly'){
+    const day=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-single').value)||30));
+    const amount=parseFloat(document.getElementById('ob-pay-amt-1').value)||sal;
+    const account=document.getElementById('ob-pay-account-1').value||onboardAccounts[0]?.key||'';
+    days=[day];
+    splits=[{day,amount,account}];
+  }else{
+    const d1=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-1').value)||5));
+    const d2=Math.min(31,Math.max(1,parseInt(document.getElementById('ob-pay-2').value)||20));
+    const a1=parseFloat(document.getElementById('ob-pay-amt-1').value)||Math.round(sal/2);
+    const a2=parseFloat(document.getElementById('ob-pay-amt-2').value)||Math.max(0,sal-a1);
+    const acc1=document.getElementById('ob-pay-account-1').value||onboardAccounts[0]?.key||'';
+    const acc2=document.getElementById('ob-pay-account-2').value||onboardAccounts[1]?.key||onboardAccounts[0]?.key||'';
+    splits=[{day:d1,amount:a1,account:acc1},{day:d2,amount:a2,account:acc2}].sort((a,b)=>a.day-b.day);
+    days=splits.map(s=>s.day);
+  }
+  if(Math.round(splits.reduce((sum,s)=>sum+Number(s.amount||0),0))!==Math.round(sal)){
+    showAlert('Your payday amounts should add up to your monthly salary.');
+    return;
+  }
+  paySchedule={mode,days,splits};
+  const requiredSalaryAccounts=new Set(splits.map(s=>s.account).filter(Boolean));
+  onboardAccounts.forEach(a=>{if(requiredSalaryAccounts.has(a.key))a.selected=true});
+  nwAccounts=onboardAccounts.filter(a=>a.selected).map(a=>({key:a.key,name:a.name,icon:a.icon}));
+  if(!nwAccounts.length)nwAccounts=[{key:'cash',name:'Cash',icon:'💵'}];
+  nwBalances={};
+  nwAccounts.forEach(a=>{const found=onboardAccounts.find(x=>x.key===a.key);nwBalances[a.key]=found?Number(found.balance||0):0});
+  recurring=recurring.filter(r=>!ONBOARD_DEFAULT_BILLS.some(b=>b.name===r.name));
+  onboardBills.filter(b=>b.selected&&Number(b.amount||0)>0).forEach(b=>{
+    recurring.push({id:nextRecurringId++,type:'bill',name:b.name,amount:Number(b.amount||0),day:parseInt(b.day)||1,category:b.category,lastPaid:''});
+  });
+  budgets['Electric Bill']=Number(onboardBills.find(b=>b.name==='Electric Bill'&&b.selected)?.amount||budgets['Electric Bill']||0);
+  budgets['Water Bill']=Number(onboardBills.find(b=>b.name==='Water Bill'&&b.selected)?.amount||budgets['Water Bill']||0);
+  budgets['Spotify']=Number(onboardBills.find(b=>b.name==='Spotify'&&b.selected)?.amount||budgets['Spotify']||0);
+  budgets['Insurance / HMO']=Number(onboardBills.find(b=>b.name==='Insurance / HMO'&&b.selected)?.amount||budgets['Insurance / HMO']||0);
+  const ac=allCats();
+  const fixedNeedsTotal=ac.filter(c=>c.type==='fixed'&&c.group==='needs').reduce((sum,c)=>sum+Number(budgets[c.name]||0),0);
+  const fixedWantsTotal=ac.filter(c=>c.type==='fixed'&&c.group==='wants').reduce((sum,c)=>sum+Number(budgets[c.name]||0),0);
+  distributeBudgetGroup(ac.filter(c=>c.type==='variable'&&c.group==='needs'),Math.max(salary*0.5-fixedNeedsTotal,0),'needs');
+  distributeBudgetGroup(ac.filter(c=>c.type==='variable'&&c.group==='wants'),Math.max(salary*0.3-fixedWantsTotal,0),'wants');
+  distributeBudgetGroup(ac.filter(c=>c.group==='savings'),Math.max(salary*0.2,0),'savings');
+  removeStaleBudgetKeys();
+  localStorage.setItem('ft_onboarded','1');
+  saveData();
+  document.getElementById('onboard-overlay').classList.remove('show');
+  render();
+  setTimeout(()=>{if(shouldStartTutorial())startTutorial()},350);
+}
 
 /* Edit entries/income */
 function toggleEditCustom(){const wrap=document.getElementById('me-custom-cat-wrap');if(!wrap)return;wrap.style.display=document.getElementById('me-cat').value==='__other__'?'block':'none'}
@@ -2436,7 +2489,24 @@ function saveDebtPayment(){const debt=debts.find(d=>d.id===activeDebtPaymentDebt
 function deleteDebtPayment(paymentId){const payment=debtPayments.find(p=>p.id===paymentId);if(!payment)return false;showConfirm(`Delete this debt payment of ${fmt(payment.amount)} for ${payment.name}?`,()=>{const debt=debts.find(d=>d.id===payment.debtId);if(debt)debt.total=Number(debt.total||0)+Number(payment.amount||0);adjustAccountBalance(payment.account,getDebtPaymentTotalDeduction(payment));debtPayments=debtPayments.filter(p=>p.id!==paymentId);entries=entries.filter(e=>e.debtPaymentId!==paymentId);refreshDebtPaymentDerivedState(payment.debtId);saveData();render();showActionToast('Debt payment deleted',`${payment.name} · ${fmt(payment.amount)}${getDebtPaymentFee(payment)>0?` · Fee ${fmt(getDebtPaymentFee(payment))}`:''}`,'🗑️');},'Delete',true);return true}
 function addWish(){const name=document.getElementById('w-name').value.trim();const price=parseFloat(document.getElementById('w-price').value)||0;const priority=document.getElementById('w-priority').value;if(!name){showAlert('Enter item name.');return;}wishlist.push({id:nextWishId++,name,price,priority,addedDate:todayStr});document.getElementById('w-name').value='';document.getElementById('w-price').value='';closeModal('modal-add-wish');saveData();render()}
 function deleteWish(id){const wish=wishlist.find(w=>w.id===id);if(!wish)return false;showConfirm(`Remove "${wish.name}" from your wishlist?`,()=>{wishlist=wishlist.filter(w=>w.id!==id);saveData();render();showActionToast('Wish removed',wish.name,'🗑️');},'Delete',true);return true}
-function buyWish(id){const w=wishlist.find(x=>x.id===id);if(!w)return;showConfirm(`Buy "${w.name}" and log ${fmt(w.price)}?`,()=>{entries.unshift({id:nextId++,date:todayStr,category:'Big Purchases / Goals',amount:w.price,note:'Wishlist: '+w.name,account:getDefaultAccountKey()});adjustAccountBalance(getDefaultAccountKey(),-w.price);wishlist=wishlist.filter(x=>x.id!==id);saveData();render();});}
+function buyWish(id){
+  const w=wishlist.find(x=>x.id===id);
+  if(!w)return;
+  const amount=Number(w.price||0);
+  const account=getDefaultAccountKey();
+  if(amount<=0){showAlert('Enter a valid wishlist price before buying.');return;}
+  if(!account){showAlert('Add an account first.');return;}
+  const balanceState=getSpendValidationState(account,amount);
+  if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}
+  showConfirm(`Buy "${w.name}" and log ${fmt(amount)}?`,()=>{
+    entries.unshift(stampRecord({id:nextId++,date:todayStr,category:'Big Purchases / Goals',amount,note:'Wishlist: '+w.name,account}));
+    adjustAccountBalance(account,-amount);
+    wishlist=wishlist.filter(x=>x.id!==id);
+    saveData();
+    render();
+    showActionToast('Wishlist item bought',`${w.name} · ${fmt(amount)}`,'🛒');
+  });
+}
 function addJournal(){const month=document.getElementById('j-month').value;const title=document.getElementById('j-title').value.trim();const note=document.getElementById('j-note').value.trim();if(!note){showAlert('Write something!');return;}journal.unshift({id:nextJournalId++,month:month||filterMonth,title,note,date:todayStr});document.getElementById('j-title').value='';document.getElementById('j-note').value='';closeModal('modal-add-journal');saveData();render()}
 function deleteJournal(id){const entry=journal.find(j=>j.id===id);if(!entry)return false;showConfirm(`Delete this journal entry${entry.title?` "${entry.title}"`:''}?`,()=>{journal=journal.filter(j=>j.id!==id);saveData();render();showActionToast('Journal deleted',entry.title||entry.month||'Journal entry','🗑️');},'Delete',true);return true}
 function saveNetWorth(){const summary=getNetWorthSummary();const mo=filterMonth;const existing=nwHistory.findIndex(h=>h.month===mo);const rec={month:mo,total:summary.assetTotal,debt:summary.debtTotal,net:summary.net,balances:{...nwBalances}};if(existing>=0)nwHistory[existing]=rec;else nwHistory.push(rec);nwHistory.sort((a,b)=>a.month.localeCompare(b.month));saveData();render()}
@@ -2445,12 +2515,109 @@ function openDeleteModal(n){deletingCat=n;const cnt=entries.filter(e=>e.category
 function confirmEdit(){const nn=document.getElementById('modal-edit-name').value.trim();if(!nn)return;const idx=customCats.findIndex(c=>c.name===editingCat);if(idx===-1)return;if(nn===editingCat&&customCats[idx].group===_editCatGroup){closeModal('modal-edit-cat');return;}if(nn!==editingCat&&allCats().find(c=>c.name===nn)){showAlert('Name exists.');return;}entries.forEach(e=>{if(e.category===editingCat)e.category=nn});budgets[nn]=budgets[editingCat]||0;delete budgets[editingCat];customCats[idx].name=nn;customCats[idx].group=_editCatGroup;customCats[idx].groupExplicit=true;closeModal('modal-edit-cat');saveData();render()}
 function confirmDelete(){if(!deletingCat)return;entries.forEach(e=>{if(e.category===deletingCat)e.category='Miscellaneous / Buffer'});delete budgets[deletingCat];customCats=customCats.filter(c=>c.name!==deletingCat);closeModal('modal-delete-cat');saveData();render()}
 
+const STALE_BUDGET_CATEGORY_MAP={
+  'Groceries & Food':'Groceries',
+  'Transport':'Commute / Public Transport',
+  'Health / Medical':'Medicines & Vitamins',
+  'Personal / Self-Care':'Grooming & Haircut',
+  'Education / Self-Improvement':'Online Courses',
+  'Water':'Water Bill',
+  'Entertainment':'Hobbies & Recreation'
+};
+const BUDGET_DISTRIBUTION_WEIGHTS={
+  needs:{'Groceries':50,'Commute / Public Transport':12,'Ride-Hailing':7,'Fuel / Gas':5,'Medicines & Vitamins':8,'Doctor / Dental':5,'Online Courses':3,'Books & Materials':2,'Miscellaneous / Buffer':8,'Transfer Fees':0},
+  wants:{'Dining Out':28,'Food Delivery':13,'Coffee & Snacks':8,'Gym / Fitness':8,'Clothing & Accessories':8,'Grooming & Haircut':5,'Skincare & Beauty':5,'Movies & Events':7,'Hobbies & Recreation':12,'Gifts & Celebrations':6,'Trading Loss':0},
+  savings:{'Savings (BDO)':35,'Emergency Fund (Digital Bank)':35,'Investments (MP2/UITF)':20,'Big Purchases / Goals':10}
+};
+function removeStaleBudgetKeys(){
+  let changed=false;
+  Object.entries(STALE_BUDGET_CATEGORY_MAP).forEach(([oldName,newName])=>{
+    if(budgets&&Object.prototype.hasOwnProperty.call(budgets,oldName)){
+      if(!Object.prototype.hasOwnProperty.call(budgets,newName)||Number(budgets[newName]||0)===0)budgets[newName]=Number(budgets[oldName]||0);
+      delete budgets[oldName];
+      changed=true;
+    }
+    entries.forEach(e=>{if(e.category===oldName){e.category=newName;changed=true;}});
+    recurring.forEach(r=>{if(r.category===oldName){r.category=newName;changed=true;}if(r.name===oldName){r.name=newName;changed=true;}});
+    (addFlowState.favoriteExpenseTemplates||[]).forEach(t=>{if(t.category===oldName){t.category=newName;changed=true;}});
+    Object.keys(addFlowState.lastExpenseByCategory||{}).forEach(key=>{
+      if(key===oldName){
+        addFlowState.lastExpenseByCategory[newName]=addFlowState.lastExpenseByCategory[newName]||addFlowState.lastExpenseByCategory[oldName];
+        delete addFlowState.lastExpenseByCategory[oldName];
+        changed=true;
+      }
+    });
+    ['needs','wants','savings'].forEach(group=>{
+      const weights=budgetStrategy.weights[group];
+      if(weights&&Object.prototype.hasOwnProperty.call(weights,oldName)){
+        if(!Object.prototype.hasOwnProperty.call(weights,newName))weights[newName]=weights[oldName];
+        delete weights[oldName];
+        changed=true;
+      }
+    });
+  });
+  return changed;
+}
+function distributeBudgetGroup(categories,total,group,target=budgets){
+  const names=categories.map(c=>c.name);
+  if(!names.length)return;
+  const weightMap=BUDGET_DISTRIBUTION_WEIGHTS[group]||{};
+  let weights=names.map(name=>Math.max(0,Number(weightMap[name]??1)));
+  let weightTotal=weights.reduce((sum,val)=>sum+val,0);
+  if(weightTotal<=0){
+    weights=names.map(()=>1);
+    weightTotal=names.length;
+  }
+  let assigned=0;
+  names.forEach((name,idx)=>{
+    const amount=idx===names.length-1?Math.max(0,Math.round(Number(total||0)-assigned)):Math.max(0,Math.round(Number(total||0)*(weights[idx]/weightTotal)));
+    target[name]=amount;
+    assigned+=amount;
+  });
+}
+
 /* Rebalance & Smart Budget */
 let rebalanceMode='503020',pendingBudgetPreview=null,pendingSmartRefreshPreview=null,smartBudgetMode='503020';
 function selectRebalanceMode(mode){rebalanceMode=mode;['503020','lastmonth','savemore'].forEach(m=>{const el=document.getElementById('rebalance-mode-'+m);if(el)el.classList.toggle('active',m===mode)});renderBudgetPreview()}
 function getLastMonthKey(){const d=new Date(now.getFullYear(),now.getMonth()-1,1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 function getFixedBudgetMap(useCurrentFallback=true){const fixedMap={};allCats().filter(c=>c.type==='fixed').forEach(c=>{const recurringAmt=recurring.filter(r=>r.type==='bill'&&r.category===c.name).reduce((s,r)=>s+Number(r.amount||0),0);const currentBudget=Number(budgets[c.name]||0);if(recurringAmt>0&&currentBudget>0)fixedMap[c.name]=Math.min(recurringAmt,currentBudget);else fixedMap[c.name]=recurringAmt||(useCurrentFallback?currentBudget:0)});return fixedMap}
-function computeBudgetPreview(mode,salaryValue){const ac=allCats();const fixedMap=getFixedBudgetMap(true);const fixedTotal=Object.values(fixedMap).reduce((s,v)=>s+Number(v||0),0);const variableNeedsCats=ac.filter(c=>c.type==='variable'&&c.group==='needs');const variableWantsCats=ac.filter(c=>c.type==='variable'&&c.group==='wants');const savingsCats=ac.filter(c=>c.group==='savings');const result={};Object.keys(fixedMap).forEach(k=>result[k]=Math.round(fixedMap[k]||0));if(mode==='503020'||mode==='savemore'){const split=mode==='savemore'?{needs:50,wants:20,savings:30}:{needs:50,wants:30,savings:20};const targetNeeds=Math.max((salaryValue*split.needs/100)-fixedTotal,0);const targetWants=Math.max(salaryValue*split.wants/100,0);const targetSavings=Math.max(salaryValue*split.savings/100,0);const nw={'Groceries & Food':.55,Transport:.15,'Health / Medical':.10,'Education / Self-Improvement':.08,'Miscellaneous / Buffer':.12};const ww={Entertainment:.45,'Personal / Self-Care':.30,'Education / Self-Improvement':.10,'Miscellaneous / Buffer':.15};const sw={'Savings (BDO)':.40,'Emergency Fund (Digital Bank)':.30,'Investments (MP2/UITF)':.20,'Big Purchases / Goals':.10};variableNeedsCats.forEach(c=>{result[c.name]=Math.round(targetNeeds*(nw[c.name]??(1/Math.max(variableNeedsCats.length,1))))});variableWantsCats.forEach(c=>{result[c.name]=Math.round(targetWants*(ww[c.name]??(1/Math.max(variableWantsCats.length,1))))});savingsCats.forEach(c=>{result[c.name]=Math.round(targetSavings*(sw[c.name]??(1/Math.max(savingsCats.length,1))))})}else if(mode==='lastmonth'){const lastMonthKey=getLastMonthKey();const lastTotals={};entries.filter(e=>e.date.startsWith(lastMonthKey)).forEach(e=>{lastTotals[e.category]=(lastTotals[e.category]||0)+Number(e.amount||0)});variableNeedsCats.forEach(c=>{result[c.name]=Math.round(Number(lastTotals[c.name]||budgets[c.name]||0)*1.1)});variableWantsCats.forEach(c=>{result[c.name]=Math.round(Number(lastTotals[c.name]||budgets[c.name]||0)*1.05)});savingsCats.forEach(c=>{result[c.name]=Math.round(Number(budgets[c.name]||0))});const totalPlanned=Object.values(result).reduce((s,v)=>s+Number(v||0),0);if(totalPlanned>salaryValue){const trimTarget=totalPlanned-salaryValue;const reducible=variableWantsCats.reduce((s,c)=>s+Number(result[c.name]||0),0);if(reducible>0)variableWantsCats.forEach(c=>{const share=Number(result[c.name]||0)/reducible;result[c.name]=Math.max(0,Math.round(Number(result[c.name]||0)-trimTarget*share))})}}const total=Object.values(result).reduce((s,v)=>s+Number(v||0),0);return{budgets:result,total,fixedTotal}}
+function computeBudgetPreview(mode,salaryValue){
+  const ac=allCats();
+  const fixedMap=getFixedBudgetMap(true);
+  const fixedTotal=Object.values(fixedMap).reduce((s,v)=>s+Number(v||0),0);
+  const fixedNeedsTotal=ac.filter(c=>c.type==='fixed'&&c.group==='needs').reduce((s,c)=>s+Number(fixedMap[c.name]||0),0);
+  const fixedWantsTotal=ac.filter(c=>c.type==='fixed'&&c.group==='wants').reduce((s,c)=>s+Number(fixedMap[c.name]||0),0);
+  const fixedSavingsTotal=ac.filter(c=>c.type==='fixed'&&c.group==='savings').reduce((s,c)=>s+Number(fixedMap[c.name]||0),0);
+  const variableNeedsCats=ac.filter(c=>c.type==='variable'&&c.group==='needs');
+  const variableWantsCats=ac.filter(c=>c.type==='variable'&&c.group==='wants');
+  const savingsCats=ac.filter(c=>c.group==='savings');
+  const result={};
+  Object.keys(fixedMap).forEach(k=>result[k]=Math.round(fixedMap[k]||0));
+  if(mode==='503020'||mode==='savemore'){
+    const split=mode==='savemore'?{needs:50,wants:20,savings:30}:{needs:50,wants:30,savings:20};
+    distributeBudgetGroup(variableNeedsCats,Math.max((salaryValue*split.needs/100)-fixedNeedsTotal,0),'needs',result);
+    distributeBudgetGroup(variableWantsCats,Math.max((salaryValue*split.wants/100)-fixedWantsTotal,0),'wants',result);
+    distributeBudgetGroup(savingsCats,Math.max((salaryValue*split.savings/100)-fixedSavingsTotal,0),'savings',result);
+  }else if(mode==='lastmonth'){
+    const lastMonthKey=getLastMonthKey();
+    const lastTotals={};
+    entries.filter(e=>e.date.startsWith(lastMonthKey)).forEach(e=>{lastTotals[e.category]=(lastTotals[e.category]||0)+Number(e.amount||0)});
+    variableNeedsCats.forEach(c=>{result[c.name]=Math.round(Number(lastTotals[c.name]||budgets[c.name]||0)*1.1)});
+    variableWantsCats.forEach(c=>{result[c.name]=Math.round(Number(lastTotals[c.name]||budgets[c.name]||0)*1.05)});
+    savingsCats.forEach(c=>{result[c.name]=Math.round(Number(budgets[c.name]||0))});
+    const totalPlanned=Object.values(result).reduce((s,v)=>s+Number(v||0),0);
+    if(totalPlanned>salaryValue){
+      const trimTarget=totalPlanned-salaryValue;
+      const reducible=variableWantsCats.reduce((s,c)=>s+Number(result[c.name]||0),0);
+      if(reducible>0)variableWantsCats.forEach(c=>{
+        const share=Number(result[c.name]||0)/reducible;
+        result[c.name]=Math.max(0,Math.round(Number(result[c.name]||0)-trimTarget*share));
+      });
+    }
+  }
+  const total=Object.values(result).reduce((s,v)=>s+Number(v||0),0);
+  return{budgets:result,total,fixedTotal};
+}
 function renderBudgetPreview(){const salaryValue=parseFloat(document.getElementById('rebalance-salary')?.value)||0;if(salaryValue<=0){document.getElementById('rebalance-summary').innerHTML='';document.getElementById('rebalance-preview').innerHTML='<div class="empty"><div class="empty-text">Enter a salary to preview.</div></div>';pendingBudgetPreview=null;return}const preview=computeBudgetPreview(rebalanceMode,salaryValue);pendingBudgetPreview=preview;const changed=Object.keys(preview.budgets).map(name=>{const current=Number(budgets[name]||0);const next=Number(preview.budgets[name]||0);return{name,current,next,diff:next-current}}).filter(x=>x.current!==x.next).sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));document.getElementById('rebalance-summary').innerHTML=`<div class="card" style="padding:14px;margin:0"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div style="font-size:13px;font-weight:700">Planned: ${fmtShort(preview.total)}</div><div style="font-size:13px;font-weight:700;color:${preview.total>salaryValue?'var(--red)':'var(--green)'}">Salary: ${fmtShort(salaryValue)}</div></div></div>`;if(!changed.length){document.getElementById('rebalance-preview').innerHTML='<div class="empty"><div class="empty-text">No changes.</div></div>';return}document.getElementById('rebalance-preview').innerHTML=`<div style="display:grid;gap:8px;margin-top:10px">${changed.slice(0,12).map(item=>`<div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm)"><div style="display:flex;justify-content:space-between;gap:8px"><div style="font-size:13px;font-weight:600">${esc(item.name)}</div><div style="font-size:12px;font-weight:700;color:${item.diff>0?'var(--green)':item.diff<0?'var(--red)':'var(--text3)'}">${item.diff>0?'+':''}${fmtShort(item.diff)}</div></div><div style="font-size:12px;color:var(--text3);margin-top:4px">${fmtShort(item.current)} → ${fmtShort(item.next)}</div></div>`).join('')}</div>`}
 function openBudgetRebalance(){document.getElementById('rebalance-salary').value=salary||'';selectRebalanceMode(rebalanceMode);renderBudgetPreview();openModal('modal-budget-rebalance')}
 function applyBudgetRebalance(){if(!pendingBudgetPreview){showAlert('Preview first.');return;}Object.keys(pendingBudgetPreview.budgets).forEach(name=>{budgets[name]=Math.round(Number(pendingBudgetPreview.budgets[name]||0))});saveData();closeModal('modal-budget-rebalance');render();showTab('more')}
@@ -2545,7 +2712,38 @@ function openSmartRefresh(){const el=document.getElementById('smart-refresh-sala
 function applySmartRefresh(){if(!pendingSmartRefreshPreview){showAlert('Preview suggestions first.');return;}Object.keys(pendingSmartRefreshPreview.budgets).forEach(name=>{budgets[name]=Math.round(Number(pendingSmartRefreshPreview.budgets[name]||0))});saveData();closeModal('modal-smart-refresh');render();showActionToast('Smart Refresh applied','Suggested budgets were applied to your categories.','🧠');showTab('more')}
 function selectSmartMode(mode){smartBudgetMode=mode;const a=document.getElementById('smart-mode-503020');const b=document.getElementById('smart-mode-conservative');if(a)a.classList.toggle('active',mode==='503020');if(b)b.classList.toggle('active',mode==='conservative')}
 function getRecurringBillAmount(categoryName){return recurring.filter(r=>r.type==='bill'&&r.category===categoryName).reduce((sum,r)=>sum+Number(r.amount||0),0)}
-function runSmartBudgetSetup(){const newSalary=parseFloat(document.getElementById('smart-salary').value)||0;const billMode=document.getElementById('smart-bill-mode').value;if(newSalary<=0){showAlert('Enter a valid salary.');return;}salary=newSalary;const split=smartBudgetMode==='conservative'?{needs:45,wants:20,savings:35}:{needs:50,wants:30,savings:20};const fixedCats=allCats().filter(c=>c.type==='fixed');const variableNeedsCats=allCats().filter(c=>c.type==='variable'&&c.group==='needs');const variableWantsCats=allCats().filter(c=>c.type==='variable'&&c.group==='wants');const savingsCats=allCats().filter(c=>c.group==='savings');let fixedTotal=0;fixedCats.forEach(c=>{const recurringAmt=getRecurringBillAmount(c.name);let amount=0;if(billMode==='keep')amount=Math.max(Number(budgets[c.name]||0),recurringAmt);else amount=recurringAmt||Number(budgets[c.name]||0)||0;budgets[c.name]=Math.round(amount);fixedTotal+=budgets[c.name]});const targetNeeds=Math.max((salary*split.needs/100)-fixedTotal,0);const targetWants=Math.max(salary*split.wants/100,0);const targetSavings=Math.max(salary*split.savings/100,0);const nw={'Groceries & Food':.55,Transport:.15,'Health / Medical':.10,'Education / Self-Improvement':.08,'Miscellaneous / Buffer':.12};const ww={Entertainment:.45,'Personal / Self-Care':.30,'Education / Self-Improvement':.10,'Miscellaneous / Buffer':.15};const sw={'Savings (BDO)':.40,'Emergency Fund (Digital Bank)':.30,'Investments (MP2/UITF)':.20,'Big Purchases / Goals':.10};variableNeedsCats.forEach(c=>{budgets[c.name]=Math.round(targetNeeds*(nw[c.name]??(1/Math.max(variableNeedsCats.length,1))))});variableWantsCats.forEach(c=>{budgets[c.name]=Math.round(targetWants*(ww[c.name]??(1/Math.max(variableWantsCats.length,1))))});savingsCats.forEach(c=>{budgets[c.name]=Math.round(targetSavings*(sw[c.name]??(1/Math.max(savingsCats.length,1))))});saveData();closeModal('modal-smart-budget');render();showTab('more')}
+function runSmartBudgetSetup(){
+  const newSalary=parseFloat(document.getElementById('smart-salary').value)||0;
+  const billMode=document.getElementById('smart-bill-mode').value;
+  if(newSalary<=0){showAlert('Enter a valid salary.');return;}
+  salary=newSalary;
+  const split=smartBudgetMode==='conservative'?{needs:45,wants:20,savings:35}:{needs:50,wants:30,savings:20};
+  const fixedCats=allCats().filter(c=>c.type==='fixed');
+  const variableNeedsCats=allCats().filter(c=>c.type==='variable'&&c.group==='needs');
+  const variableWantsCats=allCats().filter(c=>c.type==='variable'&&c.group==='wants');
+  const savingsCats=allCats().filter(c=>c.group==='savings');
+  let fixedNeedsTotal=0;
+  let fixedWantsTotal=0;
+  let fixedSavingsTotal=0;
+  fixedCats.forEach(c=>{
+    const recurringAmt=getRecurringBillAmount(c.name);
+    let amount=0;
+    if(billMode==='keep')amount=Math.max(Number(budgets[c.name]||0),recurringAmt);
+    else amount=recurringAmt||Number(budgets[c.name]||0)||0;
+    budgets[c.name]=Math.round(amount);
+    if(c.group==='needs')fixedNeedsTotal+=budgets[c.name];
+    if(c.group==='wants')fixedWantsTotal+=budgets[c.name];
+    if(c.group==='savings')fixedSavingsTotal+=budgets[c.name];
+  });
+  distributeBudgetGroup(variableNeedsCats,Math.max((salary*split.needs/100)-fixedNeedsTotal,0),'needs');
+  distributeBudgetGroup(variableWantsCats,Math.max((salary*split.wants/100)-fixedWantsTotal,0),'wants');
+  distributeBudgetGroup(savingsCats,Math.max((salary*split.savings/100)-fixedSavingsTotal,0),'savings');
+  removeStaleBudgetKeys();
+  saveData();
+  closeModal('modal-smart-budget');
+  render();
+  showTab('more');
+}
 
 /* Export & Backup */
 function parseHistoryCategoryValues(raw){
@@ -4856,6 +5054,7 @@ const INFO_CONTENT={
 function showInfo(key){const info=INFO_CONTENT[key]||{title:'About',body:'No description.'};document.getElementById('info-title').textContent=info.title;document.getElementById('info-body').innerHTML=esc(info.body);openModal('modal-info')}
 
 // Init
+if(removeStaleBudgetKeys())saveData();
 document.getElementById('f-date').value=todayStr;
 document.getElementById('inc-date').value=todayStr;
 document.getElementById('j-month').value=filterMonth;

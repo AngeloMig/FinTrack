@@ -5,7 +5,7 @@ let darkMode=false,debts=[],nextDebtId=1;
 let wishlist=[],nextWishId=1,journal=[],nextJournalId=1,recurring=[],nextRecurringId=1;
 let editingCat=null,deletingCat=null,editingGoalId=null,editingDebtId=null,editingEntryId=null,editingIncomeId=null,editingNetWorthKey=null;
 let viewYear=new Date().getFullYear();
-let addFlowState={lastExpenseByCategory:{},favoriteExpenseTemplates:[{label:'Lunch',category:'Groceries & Food',account:'gcash',note:'Lunch',amount:150},{label:'Grab',category:'Transport',account:'gcash',note:'Grab ride',amount:220},{label:'Groceries',category:'Groceries & Food',account:'bdo',note:'Groceries',amount:800},{label:'Coffee',category:'Personal / Self-Care',account:'gcash',note:'Coffee',amount:120}],lastIncomeBySource:{}};
+let addFlowState={lastExpenseByCategory:{},favoriteExpenseTemplates:[{label:'Lunch',category:'Dining Out',account:'gcash',note:'Lunch',amount:150},{label:'Grab',category:'Ride-Hailing',account:'gcash',note:'Grab ride',amount:220},{label:'Groceries',category:'Groceries',account:'bdo',note:'Groceries',amount:800},{label:'Coffee',category:'Coffee & Snacks',account:'gcash',note:'Coffee',amount:120}],lastIncomeBySource:{}};
 let notificationsSeenAt=0;
 let notifSeenKey='';
 let _lastNotifKey='';
@@ -30,8 +30,8 @@ let budgetStrategy={
   savingsPct:20,
   custom:false,
   weights:{
-    needs:{'Groceries & Food':50,'Transport':15,'Health / Medical':10,'Insurance / HMO':10,'Electric Bill':0,'Water':0,'Miscellaneous / Buffer':15},
-    wants:{'Entertainment':45,'Personal / Self-Care':25,'Education / Self-Improvement':15,'Spotify':0},
+    needs:{'Groceries':50,'Commute / Public Transport':12,'Ride-Hailing':7,'Fuel / Gas':5,'Medicines & Vitamins':8,'Doctor / Dental':5,'Online Courses':3,'Books & Materials':2,'Miscellaneous / Buffer':8,'Transfer Fees':0},
+    wants:{'Dining Out':28,'Food Delivery':13,'Coffee & Snacks':8,'Gym / Fitness':8,'Clothing & Accessories':8,'Grooming & Haircut':5,'Skincare & Beauty':5,'Movies & Events':7,'Hobbies & Recreation':12,'Gifts & Celebrations':6,'Trading Loss':0},
     savings:{'Savings (BDO)':35,'Emergency Fund (Digital Bank)':35,'Investments (MP2/UITF)':20,'Big Purchases / Goals':10}
   }
 };
