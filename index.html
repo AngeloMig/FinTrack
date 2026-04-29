@@ -46,6 +46,7 @@
 
 <!-- DASHBOARD -->
 <div class="section active" id="sec-dashboard">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn btn-ghost btn-sm" onclick="openWidgetSettings()" title="Customize dashboard layout" style="font-size:12px">⚙ Layout</button></div>
   <div class="card greeting" id="greeting-card"></div>
 
   <!-- Cashflow timeline -->
@@ -62,6 +63,9 @@
   <!-- Salary receive prompt -->
   <div id="salary-prompt-card"></div>
 
+  <!-- Spend Forecast (only current month, only if projected overruns exist) -->
+  <div id="spend-forecast-card"></div>
+
   <!-- Upcoming bills (only if any unpaid) -->
   <div id="upcoming-bills-card"></div>
 
@@ -74,11 +78,17 @@
   <!-- Debt focus -->
   <div id="debt-focus-card"></div>
 
+  <!-- Installments mini (dashboard) -->
+  <div id="installments-card-mini"></div>
+
   <!-- Budget: only problem categories -->
   <div id="budget-attention-card"></div>
 
   <!-- Recent transactions -->
-  <div class="card"><div class="card-header"><span class="card-title">Recent <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-recent')">i</button><span class="tooltip-pop" id="tip-recent"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><span style="font-size:12px;color:var(--accent);cursor:pointer;font-weight:600" onclick="showTab('history')">See all →</span></div><div id="recent-tx"></div></div>
+  <div class="card" id="recent-tx-card"><div class="card-header"><span class="card-title">Recent <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-recent')">i</button><span class="tooltip-pop" id="tip-recent"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><span style="font-size:12px;color:var(--accent);cursor:pointer;font-weight:600" onclick="showTab('history')">See all →</span></div><div id="recent-tx"></div></div>
+
+  <!-- Widget settings panel (hidden by default) -->
+  <div id="widget-settings-panel" style="display:none"></div>
 
   <!-- Show More analytics -->
   <button class="show-more-btn" id="show-more-toggle" onclick="toggleShowMore()">📈 Show charts & analytics</button>
@@ -151,7 +161,7 @@
 <!-- ADD -->
 <div class="section" id="sec-add">
   <div class="card">
-    <div class="card-header"><span class="card-title">New Expense <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-add-expense')">i</button><span class="tooltip-pop" id="tip-add-expense"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span></div>
+    <div class="card-header"><span class="card-title">New Expense <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-add-expense')">i</button><span class="tooltip-pop" id="tip-add-expense"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span><button class="btn btn-ghost btn-sm" onclick="openSmsModal()" style="margin-left:auto">📱 Paste SMS</button></div>
     <div class="input-row">
       <div class="input-group" id="tour-target-amount"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="f-amount" placeholder="0.00" oninput="updateAddPreviews()"></div>
       <div class="input-group" id="tour-target-date"><label class="input-label">Date</label><input type="date" class="input" id="f-date"></div>
@@ -173,6 +183,11 @@
     <div class="input-row add-last-row">
       <div class="input-group" id="tour-target-note"><label class="input-label">Note (optional)</label><input type="text" class="input" id="f-note" placeholder="e.g. SM Supermarket"></div>
       <button class="btn btn-primary" id="tour-target-submit-expense" onclick="addEntry()">Add Expense</button>
+    </div>
+    <div class="input-group" style="margin-top:4px">
+      <label class="input-label">Tags <span style="color:var(--text3);font-weight:400">(optional, comma-separated)</span></label>
+      <input type="text" class="input" id="f-tags" placeholder="e.g. work, reimbursable, travel" oninput="renderTagSuggestions()">
+      <div id="tag-suggestions" class="quick-actions" style="margin-top:6px;flex-wrap:wrap"></div>
     </div>
   </div>
   <div class="card">
@@ -217,7 +232,11 @@
       <div class="card-title">History <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-history')">i</button><span class="tooltip-pop" id="tip-history"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></div>
       <div class="history-topbar-sub" id="history-topbar-sub">Showing this month's activity. Open Search & Filters to refine the list.</div>
     </div>
-    <button class="btn btn-ghost btn-sm history-filter-toggle" id="history-filter-toggle" onclick="openHistoryDrawer()"><span>Search & Filters</span><span class="history-filter-toggle-count" id="history-filter-count" style="display:none">0</span></button>
+    <div style="display:flex;gap:4px;align-items:center">
+      <button class="btn btn-sm btn-ghost" id="hist-view-list" onclick="setHistoryViewMode('list')" title="List view" style="padding:4px 10px;font-size:12px">List</button>
+      <button class="btn btn-sm btn-ghost" id="hist-view-analytics" onclick="setHistoryViewMode('analytics')" title="Analytics view" style="padding:4px 10px;font-size:12px">Analytics</button>
+      <button class="btn btn-ghost btn-sm history-filter-toggle" id="history-filter-toggle" onclick="openHistoryDrawer()"><span>Filters</span><span class="history-filter-toggle-count" id="history-filter-count" style="display:none">0</span></button>
+    </div>
   </div>
   <div id="history-active-filters"></div>
   <div class="history-drawer-scrim" id="history-drawer-scrim" onclick="if(event.target===this)closeHistoryDrawer()"></div>
@@ -254,6 +273,11 @@
       <div class="input-group" style="margin:0"><label class="input-label">Min Amount (₱)</label><input type="number" class="input" id="hist-min" placeholder="0" oninput="render()"></div>
       <div class="input-group" style="margin:0"><label class="input-label">Max Amount (₱)</label><input type="number" class="input" id="hist-max" placeholder="Any" oninput="render()"></div>
     </div>
+    <div class="input-group" style="margin-bottom:12px" id="hist-tag-group">
+      <label class="input-label">Filter by Tag <span id="hist-tag-active-label" style="color:var(--accent);font-weight:700"></span></label>
+      <input type="hidden" id="hist-tag">
+      <div id="hist-tag-chips" class="quick-actions" style="flex-wrap:wrap"></div>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="saveHistoryPreset()">Save Preset</button>
       <button class="btn btn-ghost btn-sm" onclick="resetHistoryFilters()">Reset Filters</button>
@@ -264,12 +288,14 @@
   <div id="history-summary"></div>
   <div id="history-bulk"></div>
   <div id="history-content"></div>
+  <div id="history-analytics" style="display:none"></div>
   <div class="card" style="margin-top:12px"><div class="card-header"><span class="card-title">Income History</span></div><div id="income-history"></div></div>
 </div>
 
 <!-- GOALS -->
 <div class="section" id="sec-goals">
   <div class="card"><div class="card-header"><span class="card-title">Financial Health <span class="tooltip-anchor"><button class="tooltip-dot" onclick="toggleTooltip(event,'tip-goals')">i</button><span class="tooltip-pop" id="tip-goals"><div class="tooltip-title"></div><div class="tooltip-body"></div></span></span></span></div><div id="health-score"></div></div>
+  <div id="goals-timeline-card"></div>
   <div class="card">
     <div class="card-header"><span class="card-title">Savings Goals</span><button class="btn btn-sm btn-ghost" onclick="openModal('modal-add-goal')">+ Add</button></div>
     <div id="goals-list"></div>
@@ -279,10 +305,15 @@
     <div id="wishlist"></div>
   </div>
   <div class="card"><div class="card-header"><span class="card-title">Emergency Fund Calculator</span></div><div id="ef-calc"></div></div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">🤝 People Owe Me</span><button class="btn btn-sm btn-ghost" onclick="openAddSplitModal()">+ Add Split</button></div>
+    <div id="splits-card"></div>
+  </div>
 </div>
 
 <!-- DEBTS -->
 <div class="section" id="sec-debts">
+  <div id="installments-card"></div>
   <div class="card">
     <div class="card-header"><span class="card-title">Debt Tracker</span><button class="btn btn-sm btn-ghost" onclick="openModal('modal-add-debt')">+ Add</button></div>
     <div id="debt-summary"></div>
@@ -725,5 +756,85 @@
 <script src="js/state/store.js"></script>
 <script src="js/state/persistence.js"></script>
 <script src="js/app.js"></script>
+
+<!-- SMS Auto-Fill Modal -->
+<div class="modal-overlay" id="modal-sms" onclick="if(event.target===this)closeModal('modal-sms')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>📱 Paste Bank SMS</h3>
+    <p style="font-size:12px;color:var(--text3);margin:0 0 12px">Supports GCash, BDO, BPI, Maya. Paste the full SMS message below.</p>
+    <div class="input-group"><label class="input-label">SMS Message</label>
+      <textarea class="input" id="sms-text" rows="5" placeholder="e.g. You sent Php 150.00 to Jollibee SM North on 04/29/2026..."></textarea></div>
+    <button class="btn btn-primary" onclick="parseSmsInput()" style="width:100%">Parse SMS</button>
+    <div id="sms-result" style="margin-top:12px"></div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sms')">Cancel</button>
+      <button class="btn btn-success" id="sms-apply-btn" onclick="applySmsToForm()" style="display:none">Apply to Form</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Installment Modal -->
+<div class="modal-overlay" id="modal-add-installment" onclick="if(event.target===this)closeModal('modal-add-installment')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>💳 Add Installment</h3>
+    <div class="input-group"><label class="input-label">Description</label>
+      <input type="text" class="input" id="inst-name" placeholder="e.g. iPhone 16 — 0% CC 12 months"></div>
+    <div class="input-row">
+      <div class="input-group" style="margin:0"><label class="input-label">Total Amount (₱)</label>
+        <input type="number" class="input" id="inst-total" placeholder="0" oninput="updateInstallmentPreview()"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Months</label>
+        <input type="number" class="input" id="inst-months" placeholder="12" min="2" oninput="updateInstallmentPreview()"></div>
+    </div>
+    <div id="inst-preview" style="font-size:13px;color:var(--accent);font-weight:700;margin:4px 0 8px"></div>
+    <div class="input-row">
+      <div class="input-group" style="margin:0"><label class="input-label">Start Month</label>
+        <input type="month" class="input" id="inst-start"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Account</label>
+        <select class="input" id="inst-account"></select></div>
+    </div>
+    <div class="input-group"><label class="input-label">Category</label>
+      <select class="input" id="inst-cat"></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-installment')">Cancel</button>
+      <button class="btn btn-primary" onclick="addInstallment()">Add Installment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Bill Split Modal -->
+<div class="modal-overlay" id="modal-add-split" onclick="if(event.target===this)closeModal('modal-add-split')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>🤝 Split Expense</h3>
+    <div class="input-group"><label class="input-label">Description</label>
+      <input type="text" class="input" id="sp-desc" placeholder="e.g. Team dinner at Vikings"></div>
+    <div class="input-row">
+      <div class="input-group" style="margin:0"><label class="input-label">Total Bill (₱)</label>
+        <input type="number" class="input" id="sp-total" placeholder="0" oninput="updateSplitPreview()"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">My Share (₱)</label>
+        <input type="number" class="input" id="sp-my-share" placeholder="0" oninput="updateSplitPreview()"></div>
+    </div>
+    <div id="sp-preview" style="font-size:13px;font-weight:700;color:var(--green);margin:4px 0 8px"></div>
+    <div class="input-row">
+      <div class="input-group" style="margin:0"><label class="input-label">Split With</label>
+        <input type="text" class="input" id="sp-with" placeholder="Name"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Date</label>
+        <input type="date" class="input" id="sp-date"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0">
+      <input type="checkbox" id="sp-log-expense" checked onchange="toggleSplitAccountWrap()">
+      <label for="sp-log-expense" style="font-size:13px;cursor:pointer">Also log my share as an expense</label>
+    </div>
+    <div class="input-group" id="sp-account-wrap"><label class="input-label">Account</label>
+      <select class="input" id="sp-account"></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-split')">Cancel</button>
+      <button class="btn btn-primary" onclick="addSplit()">Save Split</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

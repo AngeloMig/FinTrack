@@ -1,4 +1,4 @@
-function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,notifSeenKey,nwViewMode,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState,historySavedPresets,nextHistoryPresetId}))}catch(e){console.error('FinTrack: failed to save data',e);if(e&&e.name==='QuotaExceededError'&&typeof showActionToast==='function'){showActionToast('Storage full','Your browser storage is full. Consider clearing old data or exporting a backup.','⚠️')}}}
+function saveData(){try{localStorage.setItem('ft_all',JSON.stringify({salary,budgets,entries,nextId,customCats,incomes,nextIncId,goals,nextGoalId,nwBalances,nwHistory,darkMode,debts,nextDebtId,wishlist,nextWishId,journal,nextJournalId,recurring,nextRecurringId,alertSettings,nwAccounts,transfers,nextTransferId,paySchedule,notificationsSeenAt,notifSeenKey,nwViewMode,budgetStrategy,debtPayoffSettings,debtPayments,nextDebtPaymentId,goalContributions,nextGoalContributionId,addFlowState,historySavedPresets,nextHistoryPresetId,recentTags,installments,nextInstallmentId,splits,nextSplitId,budgetRollovers,rolloverSettings}))}catch(e){console.error('FinTrack: failed to save data',e);if(e&&e.name==='QuotaExceededError'&&typeof showActionToast==='function'){showActionToast('Storage full','Your browser storage is full. Consider clearing old data or exporting a backup.','⚠️')}}}
 function loadData(){
   try{
     const raw=localStorage.getItem('ft_all');
@@ -39,6 +39,13 @@ function loadData(){
       if(d.nextGoalContributionId)nextGoalContributionId=d.nextGoalContributionId;
       if(d.historySavedPresets)historySavedPresets=d.historySavedPresets;
       if(d.nextHistoryPresetId)nextHistoryPresetId=d.nextHistoryPresetId;
+      if(d.recentTags)recentTags=d.recentTags;
+      if(d.installments)installments=d.installments;
+      if(d.nextInstallmentId)nextInstallmentId=d.nextInstallmentId;
+      if(d.splits)splits=d.splits;
+      if(d.nextSplitId)nextSplitId=d.nextSplitId;
+      if(d.budgetRollovers){const sixMonthsAgo=new Date();sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);const cutoff=`${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth()+1).padStart(2,'0')}`;budgetRollovers=Object.fromEntries(Object.entries(d.budgetRollovers).filter(([k])=>k>=cutoff));}
+      if(d.rolloverSettings)rolloverSettings=d.rolloverSettings;
       if(d.addFlowState)addFlowState={...addFlowState,...d.addFlowState,lastExpenseByCategory:{...(addFlowState.lastExpenseByCategory||{}),...((d.addFlowState&&d.addFlowState.lastExpenseByCategory)||{})},favoriteExpenseTemplates:(d.addFlowState&&d.addFlowState.favoriteExpenseTemplates)||addFlowState.favoriteExpenseTemplates,lastIncomeBySource:{...(addFlowState.lastIncomeBySource||{}),...((d.addFlowState&&d.addFlowState.lastIncomeBySource)||{})}};
       if(d.budgetStrategy){
         budgetStrategy={

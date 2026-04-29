@@ -21,6 +21,12 @@ let debtPayments=[],nextDebtPaymentId=1,activeDebtPaymentDebtId=null;
 let goalContributions=[],nextGoalContributionId=1,activeGoalContributionGoalId=null;
 let historySavedPresets=[],nextHistoryPresetId=1;
 let historyBulkMode=false,historySelectedKeys=new Set(),historyVisibleSelectionKeys=[],historyActivePresetId=null;
+let recentTags=[];
+let installments=[],nextInstallmentId=1;
+let splits=[],nextSplitId=1;
+let budgetRollovers={},rolloverSettings={};
+let goalsTimelineVisible=true;
+let historyViewMode='list';
 let historyVisibleCount=20,historyLastViewKey='';
 let historyDrawerOpen=false;
 let budgetStrategy={
