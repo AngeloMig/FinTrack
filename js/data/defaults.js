@@ -34,6 +34,7 @@ const CATS=[
 {name:"Books & Materials",budget:0,type:"variable",group:"needs",section:"education",icon:"📖",colorClass:"cat-books"},
 // ── Buffer & Fees ──────────────────────────────────────────────────────────
 {name:"Miscellaneous / Buffer",budget:701,type:"variable",group:"needs",section:"buffer",icon:"📦",colorClass:"cat-misc"},
+{name:"External Transfer",budget:0,type:"variable",group:"needs",section:"buffer",icon:"🏦",colorClass:"cat-default"},
 {name:"Transfer Fees",budget:0,type:"variable",group:"needs",section:"buffer",icon:"💸",colorClass:"cat-default"},
 {name:"Trading Loss",budget:0,type:"variable",group:"wants",section:"buffer",icon:"📉",colorClass:"cat-default"},
 // ── Savings ────────────────────────────────────────────────────────────────

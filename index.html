@@ -545,10 +545,12 @@
   <div class="modal-actions nw-modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-nw-account')">Cancel</button><button class="btn btn-ghost btn-sm" id="nw-transfer-btn" style="display:none" onclick="openTransferFromEditingAccount()">Transfer</button><button class="btn btn-danger btn-sm" id="nw-delete-btn" style="display:none" onclick="deleteNetWorthAccount()">Delete</button><button class="btn btn-primary" onclick="saveNetWorthAccount()">Save</button></div>
 </div></div>
 
-<div class="modal-overlay" id="modal-transfer" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Transfer Between Accounts</h3>
+<div class="modal-overlay" id="modal-transfer" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Transfer</h3>
+  <div class="input-group"><label class="input-label">Transfer Type</label><select class="input" id="t-mode" onchange="updateTransferModeUI();updateTransferSummary()"><option value="internal">My account</option><option value="external">Other bank account</option></select></div>
   <div class="input-row">
     <div class="input-group"><label class="input-label">From</label><select class="input" id="t-from" onchange="updateTransferSummary()"></select></div>
-    <div class="input-group"><label class="input-label">To</label><select class="input" id="t-to" onchange="updateTransferSummary()"></select></div>
+    <div class="input-group" id="t-to-wrap"><label class="input-label">To</label><select class="input" id="t-to" onchange="updateTransferSummary()"></select></div>
+    <div class="input-group" id="t-external-wrap" style="display:none"><label class="input-label">Recipient Bank / Account</label><input type="text" class="input" id="t-external-to" placeholder="e.g. BPI - Juan Dela Cruz" oninput="updateTransferSummary()"></div>
   </div>
   <div class="input-row">
     <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="t-amount" placeholder="0.00" oninput="updateTransferSummary()"></div>

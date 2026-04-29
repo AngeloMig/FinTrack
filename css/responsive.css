@@ -56,8 +56,8 @@ body{
 }
 
 .greeting{
-  background:linear-gradient(135deg,#2563eb 0%,#4f46e5 52%,#0f766e 100%);
-  box-shadow:0 22px 44px rgba(37,99,235,.24);
+  background:linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7);
+  box-shadow:0 22px 44px rgba(99,102,241,.24);
 }
 .greeting::before,.greeting::after{
   display:none;
@@ -86,7 +86,7 @@ body{
 }
 .greeting-tab.active{
   background:#fff;
-  color:#1d4ed8;
+  color:#6366f1;
 }
 
 .bottom-nav{
