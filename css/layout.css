@@ -222,14 +222,15 @@
 .mini-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
 
 
-@media(max-width:480px){
+@media(max-width:640px){
   .notif-panel{
     position:fixed;
-    top:72px;
-    left:12px;
-    right:12px;
-    width:auto;
-    max-width:none;
+    top:64px;
+    left:50%;
+    right:auto;
+    transform:translateX(-50%);
+    width:calc(100vw - 32px);
+    max-width:400px;
     max-height:min(70vh,520px);
     overflow-y:auto;
     z-index:300;
@@ -279,7 +280,7 @@
   .card-header{margin-bottom:12px}
   .card-title{font-size:13px}
   .card-badge{font-size:10px;padding:3px 8px}
-  .notif-panel{top:52px;left:10px;right:10px;border-radius:16px}
+  .notif-panel{top:56px;border-radius:16px}
   .notif-item{padding:8px 10px}
   .show-more-btn{padding:10px;font-size:12px}
   .modal{padding:18px}

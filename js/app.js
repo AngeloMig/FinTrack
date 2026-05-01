@@ -262,20 +262,29 @@ function renderCashflowNotification(){
   const wrap=document.getElementById('notif-cashflow');
   if(!wrap) return;
   const items=getCashflowTimelineMockData();
-  if(!items || !items.length){
-    wrap.innerHTML='';
-    return;
-  }
-  wrap.innerHTML = items.slice(0,3).map(item=>`
-    <div class="notif-cf-item">
+  if(!items || !items.length){wrap.innerHTML='';return;}
+  normalizePaySchedule();
+  const monthKey=currentMonthKey();
+  const todayDay=now.getDate();
+  const received=paySchedule.received||{};
+  wrap.innerHTML = items.slice(0,5).map(item=>{
+    const isSalary=item.name==='Salary'&&item.type==='income';
+    const splitDay=isSalary?item.date.getDate():null;
+    const isPending=isSalary&&splitDay&&!received[getSalaryReceiptKey(monthKey,splitDay)];
+    const isEarly=isPending&&splitDay>todayDay;
+    const btn=isPending?`<button class="btn btn-sm ${isEarly?'btn-ghost':'btn-success'}" style="font-size:10px;padding:2px 8px;margin-top:4px" onclick="openSalaryReceiptModal(${splitDay});toggleNotifications()">${isEarly?'Receive Early':'💵 Receive'}</button>`:'';
+    return`<div class="notif-cf-item">
       <div class="notif-cf-icon">${esc(item.icon)}</div>
-      <div class="notif-cf-main">
-        <div class="notif-cf-name">${esc(item.name)}</div>
+      <div class="notif-cf-main" style="flex:1;min-width:0">
+        <div class="notif-cf-name">${esc(item.name)}${isEarly?'<span style="font-size:10px;color:var(--amber);background:var(--amber-soft);padding:1px 6px;border-radius:999px;margin-left:6px">Early</span>':''}</div>
         <div class="notif-cf-meta">${esc(item.dateLabel)} • ${esc(item.meta)}</div>
       </div>
-      <div class="notif-cf-amount ${item.type}">${item.amount>=0?'+':''}${fmt(item.amount)}</div>
-    </div>
-  `).join('');
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="notif-cf-amount ${item.type}">${item.amount>=0?'+':''}${fmt(item.amount)}</div>
+        ${btn}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderCashflowTimeline(){
@@ -3832,7 +3841,10 @@ function clearSalaryReceiptForIncome(income){const key=findSalaryReceiptKeyForIn
 function getPendingSalarySplits(){normalizePaySchedule();const monthKey=currentMonthKey();const todayDay=now.getDate();const received=paySchedule.received||{};return (paySchedule.splits||[]).filter(split=>split.day<=todayDay&&!received[getSalaryReceiptKey(monthKey,split.day)]).sort((a,b)=>a.day-b.day)}
 function openSalaryReceiptModal(day){normalizePaySchedule();const monthKey=currentMonthKey();const split=(paySchedule.splits||[]).find(s=>parseInt(s.day)===parseInt(day));if(!split)return;activeSalaryReceiptKey=getSalaryReceiptKey(monthKey,split.day);document.getElementById('salary-receive-subtext').textContent=`Confirm your salary deposit for day ${split.day}.`;document.getElementById('sr-amount').value=split.amount||'';document.getElementById('sr-date').value=todayStr;buildAccountSelect('sr-account',false);document.getElementById('sr-account').value=split.account||getDefaultAccountKey();document.getElementById('sr-note').value='';openModal('modal-salary-receive')}
 function saveSalaryReceipt(){normalizePaySchedule();const amount=parseFloat(document.getElementById('sr-amount').value)||0;const date=document.getElementById('sr-date').value||todayStr;const account=document.getElementById('sr-account').value||getDefaultAccountKey();const note=(document.getElementById('sr-note').value||'').trim();if(amount<=0){showAlert('Enter a valid salary amount.');return;}const split=(paySchedule.splits||[]).find(s=>getSalaryReceiptKey(currentMonthKey(),s.day)===activeSalaryReceiptKey);if(!split){showAlert('Salary schedule not found.');return;}const incomeNote=note||`Scheduled salary · day ${split.day}`;incomes.unshift(stampRecord({id:nextIncId++,date,source:'Salary',amount,note:incomeNote,account,isSalaryDeposit:true}));adjustAccountBalance(account,amount);paySchedule.received=paySchedule.received||{};paySchedule.received[activeSalaryReceiptKey]={amount,date,account,note:incomeNote,createdAt:new Date().toISOString()};closeModal('modal-salary-receive');saveData();render();showActionToast(`${fmt(amount)} salary received`,`${getAccountInfo(account).name}`,'💼');showTab('dashboard')}
-function renderSalaryPromptCard(){const wrap=document.getElementById('salary-prompt-card');if(!wrap)return;const pending=getPendingSalarySplits();if(!pending.length){wrap.innerHTML='';return}const nextSplit=pending[0];const accountInfo=getAccountInfo(nextSplit.account);wrap.innerHTML=`<div class="card"><div class="card-header"><div><div class="card-title">Receive Salary</div><div class="card-subtitle">Payday for the ${nextSplit.day}${nextSplit.day===1?'st':nextSplit.day===2?'nd':nextSplit.day===3?'rd':'th'} is ready to confirm</div></div><span class="card-badge" style="background:var(--green-soft);color:var(--green)">${fmt(nextSplit.amount)}</span></div><div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">Default account: <strong>${esc(accountInfo.name)}</strong>. You can change it before saving.</div><button class="btn btn-primary" onclick="openSalaryReceiptModal(${nextSplit.day})">💵 Receive Salary</button></div>`}
+function renderSalaryPromptCard(){
+  const wrap=document.getElementById('salary-prompt-card');if(!wrap)return;
+  wrap.innerHTML='';
+}
 
 
 function makeDonutSVG(data,size){const total=data.reduce((s,d)=>s+d.value,0);if(total===0)return'';let cum=0;const r=size/2-6,ir=r*0.62,cx=size/2,cy=size/2;const paths=data.map(d=>{const pct=d.value/total;const s=cum*2*Math.PI-Math.PI/2;cum+=pct;const e=cum*2*Math.PI-Math.PI/2;const lg=pct>0.5?1:0;return`<path d="M${cx+r*Math.cos(s)},${cy+r*Math.sin(s)} A${r},${r} 0 ${lg} 1 ${cx+r*Math.cos(e)},${cy+r*Math.sin(e)} L${cx+ir*Math.cos(e)},${cy+ir*Math.sin(e)} A${ir},${ir} 0 ${lg} 0 ${cx+ir*Math.cos(s)},${cy+ir*Math.sin(s)}Z" fill="${d.color}" opacity="0.9"/>`}).join('');return`<svg viewBox="0 0 ${size} ${size}" class="donut-svg">${paths}<text x="${cx}" y="${cy-6}" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="800">${fmtShort(total)}</text><text x="${cx}" y="${cy+10}" text-anchor="middle" fill="var(--text3)" font-size="9" font-weight="500">Total Spent</text></svg>`}
@@ -4853,6 +4865,7 @@ function render(){
   try{ renderSpendingCalendar(); }catch(e){}
   try{ renderBudgetFocus(); }catch(e){}
   try{ renderTrendSummary(); }catch(e){}
+  try{ renderMonthlyReport(); }catch(e){}
 
 
   const helpBtn=document.getElementById('help-toggle-btn');
@@ -5458,7 +5471,94 @@ document.addEventListener('pointercancel',function(){
 
 /* ── Monthly Report ── */
 let _reportMonth=new Date().toISOString().slice(0,7);
-function renderMonthlyReport(){var wrap=document.getElementById('monthly-report-wrap');if(!wrap)return;var parts=_reportMonth.split('-');var yr=Number(parts[0]);var mo=Number(parts[1]);var monthLabel=new Date(yr,mo-1,1).toLocaleString('default',{month:'long',year:'numeric'});var monthEntries=(entries||[]).filter(function(e){return e.date&&e.date.startsWith(_reportMonth);});var monthIncomes=(incomes||[]).filter(function(i){return i.date&&i.date.startsWith(_reportMonth);});var totalExpenses=monthEntries.reduce(function(s,e){return s+Math.abs(e.amount||0);},0);var totalIncomeMo=monthIncomes.reduce(function(s,i){return s+Math.abs(i.amount||0);},0);var net=totalIncomeMo-totalExpenses;var netColor=net>=0?'var(--green,#22c55e)':'var(--red,#ef4444)';var catMap={};monthEntries.forEach(function(e){var c=e.category||'Other';catMap[c]=(catMap[c]||0)+Math.abs(e.amount||0);});var catEntries=Object.entries(catMap).sort(function(a,b){return b[1]-a[1];});var top5=monthEntries.slice().sort(function(a,b){return Math.abs(b.amount||0)-Math.abs(a.amount||0);}).slice(0,5);var catRows=catEntries.map(function(pair){var cat=pair[0];var spent=pair[1];var bgt=budgets[cat]||0;var pct=bgt>0?Math.min(100,(spent/bgt)*100):0;var over=bgt>0&&spent>bgt;return '<div class="rep-cat-row"><div class="rep-cat-info"><span class="rep-cat-name">'+esc(cat)+'</span><span class="rep-cat-amt"'+(over?' style="color:var(--red,#ef4444)"':'')+'>'+fmt(spent)+(bgt>0?' / '+fmt(bgt):'')+'</span></div>'+(bgt>0?'<div class="rep-cat-bar"><div class="rep-cat-fill" style="width:'+pct+'%;background:'+(over?'var(--red,#ef4444)':'var(--accent)')+'"></div></div>':'')+'</div>';}).join('');var top5Rows=top5.map(function(t){return '<div class="rep-tx-row"><span class="rep-tx-cat">'+esc(t.category||'Other')+'</span><span class="rep-tx-note">'+esc(t.note||'')+'</span><span class="rep-tx-amt">'+fmt(Math.abs(t.amount||0))+'</span></div>';}).join('');wrap.innerHTML='<div class="rep-month-nav"><button class="icon-btn" onclick="repPrevMonth()">&#8249;</button><span class="rep-month-label">'+monthLabel+'</span><button class="icon-btn" onclick="repNextMonth()">&#8250;</button></div><div class="rep-hero-row"><div class="rep-stat"><div class="rep-stat-label">Income</div><div class="rep-stat-val" style="color:var(--green,#22c55e)">'+fmt(totalIncomeMo)+'</div></div><div class="rep-stat"><div class="rep-stat-label">Expenses</div><div class="rep-stat-val" style="color:var(--red,#ef4444)">'+fmt(totalExpenses)+'</div></div><div class="rep-stat rep-stat-net"><div class="rep-stat-label">Net</div><div class="rep-stat-val" style="color:'+netColor+'">'+fmt(net)+'</div></div></div>'+(catEntries.length?'<div class="rep-section-title">By Category</div><div class="rep-cat-list">'+catRows+'</div>':'')+(top5.length?'<div class="rep-section-title">Top Expenses</div><div class="rep-tx-list">'+top5Rows+'</div>':'')+'<button class="btn btn-ghost rep-copy-btn" onclick="copyMonthlyReport()">&#128203; Copy Report</button>';}
+function renderMonthlyReport(){
+  var wrap=document.getElementById('monthly-report-wrap');if(!wrap)return;
+  var parts=_reportMonth.split('-');var yr=Number(parts[0]);var mo=Number(parts[1]);
+  var monthLabel=new Date(yr,mo-1,1).toLocaleString('default',{month:'long',year:'numeric'});
+  var isCurrentMonth=_reportMonth===filterMonth;
+  var monthEntries=(entries||[]).filter(function(e){return e.date&&e.date.startsWith(_reportMonth);});
+  var monthIncomes=(incomes||[]).filter(function(i){return i.date&&i.date.startsWith(_reportMonth);});
+  var totalExpenses=monthEntries.reduce(function(s,e){return s+Math.abs(e.amount||0);},0);
+  var totalIncomeMo=monthIncomes.reduce(function(s,i){return s+Math.abs(i.amount||0);},0);
+  var net=totalIncomeMo-totalExpenses;
+  var savRate=totalIncomeMo>0?Math.round((net/totalIncomeMo)*100):0;
+  var netPositive=net>=0;
+  var catMap={};
+  monthEntries.forEach(function(e){var c=e.category||'Other';catMap[c]=(catMap[c]||0)+Math.abs(e.amount||0);});
+  var catEntries=Object.entries(catMap).sort(function(a,b){return b[1]-a[1];});
+  var top5=monthEntries.slice().sort(function(a,b){return Math.abs(b.amount||0)-Math.abs(a.amount||0);}).slice(0,5);
+  var maxCat=catEntries.length?catEntries[0][1]:1;
+  var catRows=catEntries.map(function(pair){
+    var cat=pair[0];var spent=pair[1];var bgt=budgets[cat]||0;
+    var barPct=Math.round((spent/maxCat)*100);
+    var budgetPct=bgt>0?Math.min(100,Math.round((spent/bgt)*100)):0;
+    var over=bgt>0&&spent>bgt;
+    var ci=getCatInfo(cat);
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">'
+      +'<div class="tx-icon '+ci.colorClass+'" style="flex-shrink:0">'+ci.icon+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
+          +'<span style="font-size:13px;font-weight:700;color:var(--text1)">'+esc(cat)+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:'+(over?'var(--red)':'var(--text2)')+'">'+fmt(spent)+(bgt>0?'<span style="font-size:10px;font-weight:500;color:var(--text3)"> / '+fmt(bgt)+'</span>':'')+'</span>'
+        +'</div>'
+        +'<div style="height:4px;border-radius:999px;background:var(--border);overflow:hidden">'
+          +'<div style="height:100%;border-radius:999px;width:'+barPct+'%;background:'+(over?'var(--red)':'var(--accent)')+';transition:width .3s"></div>'
+        +'</div>'
+        +(bgt>0?'<div style="font-size:10px;color:'+(over?'var(--red)':'var(--text3)')+';margin-top:3px">'+budgetPct+'% of budget'+(over?' · over by '+fmt(spent-bgt):'')+'</div>':'')
+      +'</div>'
+    +'</div>';
+  }).join('');
+  var top5Rows=top5.map(function(t){
+    var ci=getCatInfo(t.category||'Other');
+    return '<div class="tx-item">'
+      +'<div class="tx-icon '+ci.colorClass+'">'+ci.icon+'</div>'
+      +'<div class="tx-info"><div class="tx-name">'+esc(t.note||t.category||'Other')+'</div>'
+      +'<div class="tx-meta">'+esc(t.category||'Other')+' · '+esc(t.date||'')+'</div></div>'
+      +'<div class="tx-amount" style="color:var(--red)">−'+fmt(Math.abs(t.amount||0))+'</div>'
+    +'</div>';
+  }).join('');
+  wrap.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+      +'<button class="icon-btn" onclick="repPrevMonth()" title="Previous month">&#8249;</button>'
+      +'<div style="text-align:center">'
+        +'<div style="font-size:15px;font-weight:800;color:var(--text1)">'+monthLabel+'</div>'
+        +(isCurrentMonth?'<div style="font-size:10px;font-weight:700;color:var(--accent);margin-top:1px">Current month</div>':'')
+      +'</div>'
+      +'<button class="icon-btn" onclick="repNextMonth()" title="Next month">&#8250;</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">'
+      +'<div style="background:var(--green-soft,rgba(34,197,94,.1));border-radius:14px;padding:12px;text-align:center">'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--green);margin-bottom:4px">Income</div>'
+        +'<div style="font-size:15px;font-weight:800;color:var(--green)">'+fmtShort(totalIncomeMo)+'</div>'
+      +'</div>'
+      +'<div style="background:rgba(239,68,68,.08);border-radius:14px;padding:12px;text-align:center">'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--red);margin-bottom:4px">Spent</div>'
+        +'<div style="font-size:15px;font-weight:800;color:var(--red)">'+fmtShort(totalExpenses)+'</div>'
+      +'</div>'
+      +'<div style="background:'+(netPositive?'var(--green-soft,rgba(34,197,94,.1))':'rgba(239,68,68,.08)')+';border-radius:14px;padding:12px;text-align:center">'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:'+(netPositive?'var(--green)':'var(--red)')+';margin-bottom:4px">Net</div>'
+        +'<div style="font-size:15px;font-weight:800;color:'+(netPositive?'var(--green)':'var(--red)')+'">'+fmtShort(net)+'</div>'
+      +'</div>'
+    +'</div>'
+    +(totalIncomeMo>0?
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface2);border-radius:12px;margin-bottom:16px">'
+        +'<span style="font-size:12px;color:var(--text2)">Savings rate</span>'
+        +'<span style="font-size:14px;font-weight:800;color:'+(savRate>=20?'var(--green)':savRate>=0?'var(--amber)':'var(--red)')+'">'+savRate+'%</span>'
+      +'</div>'
+    :'')
+    +(catEntries.length?
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">By Category</div>'
+      +'<div>'+catRows+'</div>'
+    :'')
+    +(top5.length?
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px">Top Expenses</div>'
+      +'<div class="tx-list">'+top5Rows+'</div>'
+    :'')
+    +(monthEntries.length===0&&monthIncomes.length===0?
+      '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No data for this month</div></div>'
+    :'')
+    +'<button class="btn btn-ghost" onclick="copyMonthlyReport()" style="width:100%;margin-top:16px">📋 Copy Report</button>';
+}
 function repPrevMonth(){var parts=_reportMonth.split('-');var yr=Number(parts[0]);var mo=Number(parts[1]);var d=new Date(yr,mo-2,1);_reportMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');renderMonthlyReport();}
 function repNextMonth(){var parts=_reportMonth.split('-');var yr=Number(parts[0]);var mo=Number(parts[1]);var d=new Date(yr,mo,1);_reportMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');renderMonthlyReport();}
 function copyMonthlyReport(){var parts=_reportMonth.split('-');var yr=Number(parts[0]);var mo=Number(parts[1]);var monthLabel=new Date(yr,mo-1,1).toLocaleString('default',{month:'long',year:'numeric'});var monthEntries=(entries||[]).filter(function(e){return e.date&&e.date.startsWith(_reportMonth);});var monthIncomes=(incomes||[]).filter(function(i){return i.date&&i.date.startsWith(_reportMonth);});var totalExpenses=monthEntries.reduce(function(s,e){return s+Math.abs(e.amount||0);},0);var totalIncomeMo=monthIncomes.reduce(function(s,i){return s+Math.abs(i.amount||0);},0);var net=totalIncomeMo-totalExpenses;var catMap={};monthEntries.forEach(function(e){var c=e.category||'Other';catMap[c]=(catMap[c]||0)+Math.abs(e.amount||0);});var catLines=Object.entries(catMap).sort(function(a,b){return b[1]-a[1];}).map(function(pair){return '  '+pair[0]+': '+fmt(pair[1]);}).join('\n');var text='FinTrack Report — '+monthLabel+'\nIncome: '+fmt(totalIncomeMo)+'\nExpenses: '+fmt(totalExpenses)+'\nNet: '+fmt(net)+'\n\nBy Category:\n'+catLines;navigator.clipboard.writeText(text).catch(function(){});}
