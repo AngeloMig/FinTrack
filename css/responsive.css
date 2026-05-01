@@ -198,3 +198,96 @@ body{
   .bottom-nav{width:calc(100% - 16px);bottom:8px}
   .nav-item{font-size:9px;min-height:50px}
 }
+
+/* ── Widget settings floating popup ── */
+#widget-settings-panel{
+  position:fixed;
+  z-index:500;
+  width:288px;
+  border-radius:var(--radius);
+  box-shadow:0 20px 48px rgba(15,23,42,.18),0 4px 12px rgba(15,23,42,.1);
+  background:var(--surface);
+  border:1px solid var(--border);
+  animation:popup-in .15s ease;
+}
+.dark #widget-settings-panel{
+  box-shadow:0 20px 48px rgba(0,0,0,.36),0 4px 12px rgba(0,0,0,.2);
+}
+@keyframes popup-in{
+  from{opacity:0;transform:translateY(-6px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.widget-popup{
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.widget-popup-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:14px 16px 10px;
+  border-bottom:1px solid var(--border);
+}
+#layout-toggle-btn.active,
+#layout-toggle-btn[aria-expanded="true"]{
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+
+/* ── iPhone safe areas & iOS fixes ── */
+
+/* Notch / Dynamic Island: push topbar content below status bar */
+@supports (padding-top: env(safe-area-inset-top)){
+  .topbar{
+    padding-top:calc(14px + env(safe-area-inset-top));
+  }
+  .app{
+    padding-top:calc(8px + env(safe-area-inset-top));
+  }
+}
+
+/* Home indicator: lift bottom-nav above the gesture bar */
+@supports (bottom: env(safe-area-inset-bottom)){
+  .bottom-nav{
+    bottom:calc(12px + env(safe-area-inset-bottom));
+  }
+  .app{
+    padding-bottom:calc(118px + env(safe-area-inset-bottom));
+  }
+  /* Give modals room for the home indicator */
+  .modal-content{
+    padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* iOS input zoom prevention — iOS Safari zooms in when focused input font-size < 16px */
+@supports (-webkit-touch-callout: none){
+  .input,
+  input.input,
+  select.input,
+  textarea.input{
+    font-size:16px;
+  }
+  /* Re-apply compact overrides at 16px so they still feel tight */
+  #sec-add .input{font-size:16px}
+}
+
+/* History view toggle buttons: stretch to full row on small screens */
+@media(max-width:540px){
+  .history-topbar-actions{
+    display:flex;
+    gap:4px;
+    width:100%;
+  }
+  .history-topbar-actions .btn{
+    flex:1;
+    justify-content:center;
+  }
+}
+
+/* Goals SVG timeline: ensure it never overflows on SE (375px) */
+@media(max-width:390px){
+  .goals-timeline-wrap svg{
+    height:auto;
+  }
+}

@@ -4,7 +4,12 @@
       "Bash(node -e ' *)",
       "Bash(node --check \"c:\\\\Users\\\\devil\\\\OneDrive\\\\Documents\\\\GitHub\\\\FinTrack\\\\js\\\\app.js\")",
       "Bash(node --check js/app.js)",
-      "Bash(node --check \"c:\\\\Users\\\\devil\\\\OneDrive\\\\Documents\\\\GitHub\\\\FinTrack\\\\js\\\\state\\\\store.js\")"
+      "Bash(node --check \"c:\\\\Users\\\\devil\\\\OneDrive\\\\Documents\\\\GitHub\\\\FinTrack\\\\js\\\\state\\\\store.js\")",
+      "Bash(node --check \"c:/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/features.js\")",
+      "Bash(node --check \"c:/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/app.js\")",
+      "Bash(node --check /c/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/app.js)",
+      "Bash(node --check /c/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/features.js)",
+      "Bash(git checkout *)"
     ]
   }
 }

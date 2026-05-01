@@ -1155,6 +1155,82 @@
   .budget-stepper{justify-content:flex-end}
 }
 
+/* ── Budget swimlanes (Revamp 14) ── */
+.budget-swimlanes{display:grid;gap:10px}
+.budget-swimlane{border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--surface)}
+.budget-swim-head{width:100%;display:flex;justify-content:space-between;align-items:center;padding:13px 16px;background:transparent;border:none;cursor:pointer;gap:10px;-webkit-tap-highlight-color:transparent;text-align:left}
+.budget-swim-head:active{background:var(--surface2)}
+.budget-swim-head-left{display:flex;align-items:center;gap:8px}
+.budget-swim-name{font-size:14px;font-weight:800;color:var(--text1)}
+.budget-swim-count{font-size:10px;font-weight:700;color:var(--text3);background:var(--surface2);border-radius:999px;padding:2px 7px}
+.budget-swim-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.budget-swim-amounts{display:flex;align-items:baseline}
+.budget-swim-group-bar-wrap{height:3px;background:var(--border)}
+.budget-swim-group-bar{height:100%;border-radius:0;transition:width .4s ease}
+.budget-swim-body{border-top:1px solid var(--border)}
+/* rows */
+.budget-swim-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.budget-swim-row:last-child{border-bottom:none}
+.budget-swim-row-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.budget-swim-icon{width:34px;height:34px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.budget-swim-row-info{flex:1;min-width:0}
+.budget-swim-row-name{font-size:12px;font-weight:700;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;display:flex;align-items:center;gap:0}
+.budget-swim-bar-wrap{height:4px;border-radius:999px;background:var(--border);overflow:hidden;margin-bottom:5px}
+.budget-swim-bar{height:100%;border-radius:999px;transition:width .3s ease;min-width:3px}
+.budget-swim-row-meta{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)}
+.budget-swim-chip{padding:2px 7px;border-radius:999px;font-size:9px;font-weight:700;border:1px solid transparent}
+.budget-swim-chip.good{background:rgba(16,185,129,.08);color:var(--green);border-color:rgba(16,185,129,.14)}
+.budget-swim-chip.risk{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.14)}
+/* stepper */
+.budget-swim-stepper{display:flex;align-items:center;background:var(--surface2);border-radius:999px;padding:3px;flex-shrink:0;gap:0}
+.bstepper-btn{width:32px;height:32px;border:none;background:transparent;color:var(--accent);font-size:18px;font-weight:700;cursor:pointer;border-radius:999px;display:flex;align-items:center;justify-content:center;transition:var(--transition);line-height:1;padding:0}
+.bstepper-btn:active{background:var(--accent-soft)}
+.bstepper-val{font-size:11px;font-weight:800;color:var(--text1);min-width:68px;text-align:center;cursor:pointer;padding:0 2px}
+.bstepper-val:hover{color:var(--accent)}
+.bstepper-edit{width:76px;text-align:center;font-size:12px;font-weight:800;border:1.5px solid var(--accent);border-radius:8px;padding:4px 6px;background:var(--surface);color:var(--text);outline:none;font-family:inherit}
+@media(max-width:400px){
+  .budget-swim-row{padding:10px 12px;gap:8px}
+  .budget-swim-icon{width:30px;height:30px;font-size:15px}
+  .bstepper-val{min-width:58px;font-size:10px}
+  .bstepper-btn{width:28px;height:28px;font-size:16px}
+}
+
+/* ── Recurring manager (Revamp 15) ── */
+.rec-manager{display:grid;gap:0}
+/* calendar strip */
+.rec-cal-strip{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.rec-cal-strip::-webkit-scrollbar{display:none}
+.rec-cal-day{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:38px;padding:7px 4px 6px;border-radius:12px;cursor:default;flex-shrink:0;background:transparent;transition:background .15s}
+.rec-cal-today{background:var(--accent-soft);border:1.5px solid var(--accent)}
+.rec-cal-dow{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.rec-cal-num{font-size:14px;font-weight:800;color:var(--text1);line-height:1}
+.rec-cal-today .rec-cal-dow,.rec-cal-today .rec-cal-num{color:var(--accent)}
+.rec-cal-dots{display:flex;gap:3px;height:7px;align-items:center;justify-content:center;margin-top:1px}
+.rec-dot{width:6px;height:6px;border-radius:999px;flex-shrink:0}
+/* sections */
+.rec-section{padding:12px 0;border-top:1px solid var(--border)}
+.rec-section:first-child{border-top:none;padding-top:0}
+.rec-section-label{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+/* rows */
+.rec-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.rec-row:last-child{border-bottom:none}
+.rec-row-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.rec-row-icon{font-size:20px;width:34px;height:34px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rec-row-name{font-size:13px;font-weight:700;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-row-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.rec-row-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.rec-chip{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.rec-pay-btn{width:auto;padding:5px 12px;font-size:12px}
+/* pay schedule */
+.rec-pay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:6px}
+.rec-pay-card{background:var(--surface2);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.rec-pay-pill{color:#fff;font-size:11px;font-weight:800;padding:4px 12px;border-radius:999px;letter-spacing:.02em}
+.rec-pay-acc{font-size:11px;color:var(--text3);font-weight:600;margin-top:2px}
+.rec-pay-input{width:90px;text-align:center;font-size:14px;font-weight:800;border:1.5px solid var(--border);border-radius:10px;padding:5px 8px;background:var(--surface);color:var(--text);outline:none;font-family:inherit;transition:border-color .15s}
+.rec-pay-input:focus{border-color:var(--accent)}
+.rec-pay-pct{font-size:12px;font-weight:800}
+.rec-pay-diff{font-size:11px;font-weight:600;padding:4px 0}
+
 /* ── NW account type toggle ── */
 .nw-modal-sheet{padding-top:22px}
 .nw-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -1264,6 +1340,21 @@
   .nw-modal-actions{flex-wrap:wrap}
   .nw-modal-preview-balance{font-size:27px}
 }
+
+/* NW Overview Hero */
+.nw-hero-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px;}
+.nw-hero-left{flex:1;min-width:0;}
+.nw-hero-label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
+.nw-hero-amount{font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1;}
+.nw-hero-sub{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.nw-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;}
+.nw-pill-asset{background:rgba(34,197,94,.12);color:#16a34a;}
+.dark .nw-pill-asset{color:#4ade80;}
+.nw-pill-liab{background:rgba(239,68,68,.12);color:#dc2626;}
+.dark .nw-pill-liab{color:#f87171;}
+.nw-donut{flex-shrink:0;}
+.nw-chart-wrap{margin-top:4px;margin-bottom:4px;}
+.nw-chart-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:2px;}
 
 /* ── Tab buttons ── */
 .tab-btn { padding: 10px 0; }
