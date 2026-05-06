@@ -174,7 +174,7 @@ function getCashflowTimelineMockData(){
     const due=makeDate(split.day);
     const key=getSalaryReceiptKey(monthKey,split.day);
     const alreadyReceived=!!((paySchedule.received||{})[key]);
-    if(!alreadyReceived && due>=today){
+    if(!alreadyReceived){
       const acc=getAccountInfo(split.account||getDefaultAccountKey());
       events.push({
         type:'income',
