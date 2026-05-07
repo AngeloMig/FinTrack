@@ -8,7 +8,7 @@ body{
 }
 
 .app{
-  padding-bottom:118px;
+  padding-bottom:max(118px,calc(env(safe-area-inset-bottom) + 90px));
 }
 
 .topbar{
@@ -257,6 +257,20 @@ body{
   /* Give modals room for the home indicator */
   .modal-content{
     padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* iOS: prevent the drawer from scrolling when a date/month picker input is focused.
+   Without this, iOS tries to scroll the fixed container to reveal the keyboard,
+   which shifts the scrim and causes ghost taps that close the drawer. */
+@supports (-webkit-touch-callout: none){
+  .history-drawer{
+    -webkit-overflow-scrolling: auto;
+  }
+  .history-picker-input{
+    /* Prevents iOS from repositioning the viewport on focus */
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 

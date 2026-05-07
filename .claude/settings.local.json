@@ -9,7 +9,10 @@
       "Bash(node --check \"c:/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/app.js\")",
       "Bash(node --check /c/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/app.js)",
       "Bash(node --check /c/Users/devil/OneDrive/Documents/GitHub/FinTrack/js/features.js)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(Get-ChildItem -Recurse -File)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table Name, FullName)"
     ]
   }
 }

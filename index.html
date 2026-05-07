@@ -19,9 +19,9 @@
 <div class="topbar">
   <h1>💰 FinTrack</h1>
   <div class="topbar-actions">
-    <button class="icon-btn" id="help-toggle-btn" onclick="toggleHelpMode()" title="Help mode">❔</button>
+    <button class="icon-btn" id="help-toggle-btn" onclick="toggleHelpMode()" title="Help mode" aria-label="Help mode">❔</button>
     <div class="notif-wrap">
-      <button class="icon-btn" id="tour-target-bell" onclick="toggleNotifications()" title="Notifications">🔔</button>
+      <button class="icon-btn" id="tour-target-bell" onclick="toggleNotifications()" title="Notifications" aria-label="Notifications">🔔</button>
       <div class="notif-badge" id="notif-badge" style="display:none"></div>
       <div class="notif-panel" id="notif-panel">
         <div class="notif-head">
@@ -39,9 +39,9 @@
         </div>
       </div>
     </div>
-    <button class="icon-btn" onclick="exportCSV()" title="Export CSV">📥</button>
-    <button class="icon-btn" id="layout-toggle-btn" onclick="openWidgetSettings()" title="Customize dashboard layout">⚙</button>
-    <button class="icon-btn" id="dark-toggle" onclick="toggleDark()" title="Toggle theme">🌙</button>
+    <button class="icon-btn" onclick="exportCSV()" title="Export CSV" aria-label="Export CSV">📥</button>
+    <button class="icon-btn" id="layout-toggle-btn" onclick="openWidgetSettings()" title="Customize dashboard layout" aria-label="Customize dashboard layout">⚙</button>
+    <button class="icon-btn" id="dark-toggle" onclick="toggleDark()" title="Toggle theme" aria-label="Toggle dark mode">🌙</button>
   </div>
 </div>
 
@@ -51,6 +51,9 @@
 <!-- DASHBOARD -->
 <div class="section active" id="sec-dashboard">
   <div class="card greeting" id="greeting-card"></div>
+
+  <!-- Getting started prompt (shown once after skipping onboarding) -->
+  <div id="gs-card"></div>
 
   <!-- Cashflow timeline -->
 
@@ -242,14 +245,14 @@
   <div class="history-drawer-scrim" id="history-drawer-scrim" onclick="if(event.target===this)closeHistoryDrawer()"></div>
   <div class="card history-drawer" id="history-drawer" aria-hidden="true">
     <div class="card-header history-drawer-head"><div><span class="card-title">Search & Filters</span><div class="history-drawer-sub">Refine History without pushing the stats off screen.</div></div><button class="btn-icon" type="button" onclick="closeHistoryDrawer()" aria-label="Close history filters">x</button></div>
-    <div class="input-group" style="margin-bottom:12px"><label class="input-label">Search</label><input type="text" class="input" id="hist-search" placeholder="Search note, category, source, amount..." oninput="render()"></div>
+    <div class="input-group" style="margin-bottom:12px"><label class="input-label">Search</label><input type="text" class="input" id="hist-search" placeholder="Search note, category, source, amount..." oninput="scheduleRender()"></div>
     <div class="input-row history-filter-top-row" style="margin-bottom:12px">
       <div class="input-group history-category-group" style="margin:0"><label class="input-label">Category</label><div id="hist-filter-wrap"></div></div>
-      <div class="input-group" style="margin:0"><label class="input-label">Month</label><input type="month" class="input history-picker-input" id="hist-month" onchange="handleHistoryMonthChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Month</label><input type="month" class="input history-picker-input" id="hist-month" onchange="handleHistoryMonthChange()" onclick="openHistoryPicker(this)"></div>
     </div>
     <div class="input-row" style="margin-bottom:12px">
-      <div class="input-group" style="margin:0"><label class="input-label">Specific Day</label><input type="date" class="input history-picker-input" id="hist-day" onchange="handleHistoryDayChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
-      <div class="input-group" style="margin:0"><label class="input-label">Week</label><input type="week" class="input history-picker-input" id="hist-week" onchange="handleHistoryWeekChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Specific Day</label><input type="date" class="input history-picker-input" id="hist-day" onchange="handleHistoryDayChange()" onclick="openHistoryPicker(this)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Week</label><input type="week" class="input history-picker-input" id="hist-week" onchange="handleHistoryWeekChange()" onclick="openHistoryPicker(this)"></div>
     </div>
     <div class="input-group" style="margin-bottom:12px">
       <label class="input-label">Quick Range</label>
@@ -257,8 +260,8 @@
       <input type="hidden" id="hist-quick-preset">
     </div>
     <div class="input-row" style="margin-bottom:12px">
-      <div class="input-group" style="margin:0"><label class="input-label">From</label><input type="date" class="input history-picker-input" id="hist-from" onchange="handleHistoryRangeChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
-      <div class="input-group" style="margin:0"><label class="input-label">To</label><input type="date" class="input history-picker-input" id="hist-to" onchange="handleHistoryRangeChange()" onpointerdown="openHistoryPicker(this,event)" onclick="openHistoryPicker(this,event)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">From</label><input type="date" class="input history-picker-input" id="hist-from" onchange="handleHistoryRangeChange()" onclick="openHistoryPicker(this)"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">To</label><input type="date" class="input history-picker-input" id="hist-to" onchange="handleHistoryRangeChange()" onclick="openHistoryPicker(this)"></div>
     </div>
     <div class="input-row" style="margin-bottom:12px">
       <div class="input-group" style="margin:0"><label class="input-label">Type</label><select class="input" id="hist-type" onchange="render()"><option value="all">All</option><option value="expense">Expenses</option><option value="income">Income</option></select></div>
@@ -270,8 +273,8 @@
     </div>
     <div class="input-group" style="margin-bottom:12px"><label class="input-label">Account</label><select class="input" id="hist-account" onchange="render()"></select></div>
     <div class="input-row" style="margin-bottom:12px">
-      <div class="input-group" style="margin:0"><label class="input-label">Min Amount (₱)</label><input type="number" class="input" id="hist-min" placeholder="0" oninput="render()"></div>
-      <div class="input-group" style="margin:0"><label class="input-label">Max Amount (₱)</label><input type="number" class="input" id="hist-max" placeholder="Any" oninput="render()"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Min Amount (₱)</label><input type="number" class="input" id="hist-min" placeholder="0" oninput="scheduleRender()"></div>
+      <div class="input-group" style="margin:0"><label class="input-label">Max Amount (₱)</label><input type="number" class="input" id="hist-max" placeholder="Any" oninput="scheduleRender()"></div>
     </div>
     <div class="input-group" style="margin-bottom:12px" id="hist-tag-group">
       <label class="input-label">Filter by Tag <span id="hist-tag-active-label" style="color:var(--accent);font-weight:700"></span></label>
@@ -521,7 +524,7 @@
 
 <div class="modal-overlay" id="modal-add-recurring" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Add Recurring Item</h3>
   <div class="input-row">
-    <div class="input-group"><label class="input-label">Type</label><select class="input" id="r-type" onchange="toggleRecurringType()"><option value="bill">Bill</option><option value="income">Income</option></select></div>
+    <div class="input-group"><label class="input-label">Type</label><select class="input" id="r-type" onchange="toggleRecurringType()"><option value="bill">Bill</option><option value="income">Income</option><option value="transfer">Transfer</option></select></div>
     <div class="input-group"><label class="input-label">Day of Month</label><input type="number" class="input" id="r-day" min="1" max="31" placeholder="15"></div>
   </div>
   <div class="input-row">
@@ -529,6 +532,12 @@
     <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="r-amount" placeholder="0.00"></div>
   </div>
   <div class="input-group" id="r-cat-wrap"><label class="input-label">Category</label><select class="input" id="r-cat"></select></div>
+  <div id="r-transfer-fields" style="display:none">
+    <div class="input-row">
+      <div class="input-group" style="margin:0"><label class="input-label">From Account</label><select class="input" id="r-from"></select></div>
+      <div class="input-group" style="margin:0"><label class="input-label">To Account</label><select class="input" id="r-to"></select></div>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-add-recurring')">Cancel</button><button class="btn btn-primary" onclick="addRecurring()">Add Recurring</button></div>
 </div></div>
 
