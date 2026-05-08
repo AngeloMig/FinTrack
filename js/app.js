@@ -15,6 +15,8 @@ const fmt=n=>"₱"+Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,
 const fmtSigned=n=>{n=Number(n||0);if(n===0)return fmt(0);return`${n>0?'+':'-'}${fmt(Math.abs(n))}`};
 const fmtShort=n=>{n=Number(n||0);if(Math.abs(n)>=1e6)return"₱"+(n/1e6).toFixed(1)+"M";if(Math.abs(n)>=1e3)return"₱"+Math.round(n/1e3)+"K";return"₱"+Math.round(n).toLocaleString()};
 const fmtBudget=n=>{const value=Number(n||0);return"₱"+value.toLocaleString("en-PH",{minimumFractionDigits:Number.isInteger(value)?0:2,maximumFractionDigits:2})};
+const roundMoney=n=>Math.round((Number(n)||0)*100)/100;
+const moneyInputValue=n=>roundMoney(n).toFixed(2);
 const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML};
 const BORROWED_INCOME_SOURCES=['borrowed money','loan release','cash advance','cash advance / debt proceeds','debt proceeds'];
 function isBorrowedIncomeSource(source){
@@ -113,12 +115,31 @@ function _setupFocusTrap(id){
 function _teardownFocusTrap(){
   if(_ftHandler){document.removeEventListener('keydown',_ftHandler);_ftHandler=null;}
 }
+function _ensureModalCloseButton(overlay){
+  if(!overlay)return;
+  const modal=overlay.querySelector(':scope > .modal');
+  if(!modal)return;
+  if(modal.classList.contains('modal-no-close'))return;
+  if(modal.querySelector(':scope > .modal-close-btn'))return;
+  const id=overlay.id;
+  if(!id)return;
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.className='modal-close-btn';
+  btn.setAttribute('aria-label','Close');
+  btn.title='Close';
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  btn.addEventListener('click',function(e){e.stopPropagation();closeModal(id);});
+  modal.insertBefore(btn,modal.firstChild);
+}
 function openModal(id){
   if(!_DIALOG_IDS.has(id)){
     const prev=document.querySelector('.modal-overlay.show');
     if(prev&&prev.id!==id&&!_DIALOG_IDS.has(prev.id))prev.classList.remove('show');
   }
-  document.getElementById(id).classList.add('show');
+  const overlay=document.getElementById(id);
+  if(overlay&&overlay.classList.contains('modal-overlay'))_ensureModalCloseButton(overlay);
+  overlay.classList.add('show');
   document.body.classList.add('modal-open');
   _setupFocusTrap(id);
 }
@@ -203,6 +224,13 @@ function openAllBudgets(){
   requestAnimationFrame(()=>{
     const card=document.getElementById('budget-bars-card');
     if(card)card.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+}
+function openBudgetHub(){
+  if(typeof showTab==='function')showTab('more');
+  requestAnimationFrame(()=>{
+    const hub=document.getElementById('budgets-hub');
+    if(hub)hub.scrollIntoView({behavior:'smooth',block:'start'});
   });
 }
 
@@ -469,10 +497,10 @@ function getMonthIncome(monthKey=filterMonth){
   return incomes.filter(i=>(i.date||'').slice(0,7)===monthKey && !i.isSalaryDeposit && !isBorrowedIncomeSource(i.source));
 }
 function getMonthSpent(monthKey=filterMonth){
-  return getMonthEntries(monthKey).reduce((sum,e)=>sum+Number(e.amount||0),0);
+  return roundMoney(getMonthEntries(monthKey).reduce((sum,e)=>sum+Number(e.amount||0),0));
 }
 function getMonthIncomeTotal(monthKey=filterMonth){
-  return getMonthIncome(monthKey).reduce((sum,i)=>sum+Number(i.amount||0),0);
+  return roundMoney(getMonthIncome(monthKey).reduce((sum,i)=>sum+Number(i.amount||0),0));
 }
 function formatMonthLabel(monthKey=currentMonthKey()){
   if(!monthKey)return'';
@@ -591,7 +619,7 @@ function getMonthCategoryTotals(monthKey=filterMonth){
   const totals={};
   getMonthEntries(monthKey).filter(isBudgetTrackedEntry).forEach(e=>{
     if(!e.category)return;
-    totals[e.category]=(totals[e.category]||0)+Number(e.amount||0);
+    totals[e.category]=roundMoney((totals[e.category]||0)+Number(e.amount||0));
   });
   return totals;
 }
@@ -890,6 +918,14 @@ function rgbaFromHex(hex,alpha=.35){
   if(Number.isNaN(num))return`rgba(99,102,241,${alpha})`;
   return`rgba(${(num>>16)&255},${(num>>8)&255},${num&255},${alpha})`;
 }
+const MONEY_FLOW_PALETTES={
+  income:['#10b981','#22c55e','#14b8a6','#34d399','#84cc16','#5eead4'],
+  account:['#64748b','#475569','#94a3b8','#334155','#52525b','#71717a'],
+  spending:['#ef4444','#f97316','#eab308','#06b6d4','#ec4899','#14b8a6','#3b82f6','#a855f7','#84cc16','#f59e0b','#0ea5e9','#e11d48'],
+  savings:['#6366f1','#8b5cf6','#a855f7']
+};
+function getPreviousMonthKey(monthKey){const[y,m]=String(monthKey||'').split('-').map(Number);if(!y||!m)return monthKey;const d=new Date(y,m-2,1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function getMoneyFlowShortMonthLabel(monthKey){return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short'})}
 function truncateMoneyFlowLabel(label,max=18){const text=String(label||'').trim();return text.length>max?text.slice(0,Math.max(max-1,1))+'…':text}
 function addMoneyFlowAmount(map,key,amount,seed={}){const next=(map.get(key)||{...seed,amount:0});next.amount=Number(next.amount||0)+Number(amount||0);map.set(key,next);return next}
 function getMoneyFlowSourceIcon(source){const lower=String(source||'').toLowerCase();if(lower==='salary')return'💼';if(lower.includes('bonus'))return'✨';if(lower.includes('gift'))return'🎁';if(lower.includes('freelance'))return'🧑‍💻';if(isBorrowedIncomeSource(lower))return'💳';if(lower==='existing balance')return'🏦';return'💵'}
@@ -910,6 +946,11 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
   const accountOutTotals=new Map();
   const rawCategoryTotals=new Map();
   const rawAccountCategoryFlows=new Map();
+  const categoryStats=new Map();
+
+  const sourceAccountDates=new Map();
+  const accountCategoryDates=new Map();
+  const dayFromDate=ds=>{const d=parseInt(String(ds||'').slice(8,10),10);return Number.isFinite(d)&&d>=1&&d<=31?d:15};
 
   monthIncomes.forEach(income=>{
     const source=(income.source||'Other Income').trim()||'Other Income';
@@ -920,6 +961,11 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     addMoneyFlowAmount(accountInTotals,account,amount,{key:account});
     const accInfo=getAccountInfo(account);
     accountMeta.set(account,{key:account,label:accInfo.name,icon:accInfo.icon||'🏦'});
+    const dKey=`${source}|||${account}`;
+    const ds=sourceAccountDates.get(dKey)||{sum:0,weight:0};
+    ds.sum+=dayFromDate(income.date)*amount;
+    ds.weight+=amount;
+    sourceAccountDates.set(dKey,ds);
   });
 
   monthEntries.forEach(entry=>{
@@ -931,15 +977,26 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     addMoneyFlowAmount(accountOutTotals,account,amount,{key:account});
     const accInfo=getAccountInfo(account);
     accountMeta.set(account,{key:account,label:accInfo.name,icon:accInfo.icon||'🏦'});
+    const stat=categoryStats.get(categoryMeta.label)||{count:0,topAmount:0,topNote:'',entries:[]};
+    stat.count++;
+    if(amount>stat.topAmount){stat.topAmount=amount;stat.topNote=String(entry.note||entry.category||'').trim();}
+    stat.entries.push({amount,date:entry.date||'',note:String(entry.note||'').trim(),account,category:categoryMeta.label});
+    categoryStats.set(categoryMeta.label,stat);
+    const dKey=`${account}|||${categoryMeta.label}`;
+    const ds=accountCategoryDates.get(dKey)||{sum:0,weight:0};
+    ds.sum+=dayFromDate(entry.date)*amount;
+    ds.weight+=amount;
+    accountCategoryDates.set(dKey,ds);
   });
 
   const spendingCategories=[...rawCategoryTotals.values()].filter(cat=>cat.group==='spending').sort((a,b)=>b.amount-a.amount);
   const savingsCategories=[...rawCategoryTotals.values()].filter(cat=>cat.group==='savings').sort((a,b)=>b.amount-a.amount);
   const keptCategoryLabels=new Set([
-    ...spendingCategories.slice(0,4).map(cat=>cat.label),
-    ...savingsCategories.slice(0,3).map(cat=>cat.label)
+    ...spendingCategories.slice(0,8).map(cat=>cat.label),
+    ...savingsCategories.slice(0,4).map(cat=>cat.label)
   ]);
   const groupedCategories=new Map();
+  const groupedCategoryStats=new Map();
   const accountCategoryFlows=new Map();
 
   rawAccountCategoryFlows.forEach(flow=>{
@@ -951,9 +1008,27 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     addMoneyFlowAmount(accountCategoryFlows,`${flow.account}|||${label}`,flow.amount,{account:flow.account,label});
   });
 
+  rawCategoryTotals.forEach((rawCat,rawLabel)=>{
+    const targetLabel=keptCategoryLabels.has(rawLabel)?rawLabel:'Other';
+    const stat=categoryStats.get(rawLabel)||{count:0,topAmount:0,topNote:'',entries:[]};
+    const agg=groupedCategoryStats.get(targetLabel)||{count:0,topAmount:0,topNote:'',entries:[]};
+    agg.count+=stat.count;
+    if(stat.topAmount>agg.topAmount){agg.topAmount=stat.topAmount;agg.topNote=stat.topNote;}
+    agg.entries=[...(agg.entries||[]),...(stat.entries||[])];
+    groupedCategoryStats.set(targetLabel,agg);
+  });
+  groupedCategoryStats.forEach(agg=>{
+    if(Array.isArray(agg.entries)){
+      agg.entries.sort((a,b)=>Number(b.amount||0)-Number(a.amount||0));
+      if(agg.entries.length>5)agg.entries.length=5;
+    }
+  });
+
   if(!accountCategoryFlows.size){
     return{hasActivity:false,monthKey,reason:monthIncomes.length?'No spending or savings activity recorded yet this month.':'No money-flow activity recorded yet this month.'};
   }
+
+  const accountRealIncomeMap=new Map([...accountInTotals.entries()].map(([k,v])=>[k,Number(v.amount||0)]));
 
   accountOutTotals.forEach((totals,account)=>{
     const outgoing=Number(totals.amount||0);
@@ -966,19 +1041,48 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     }
   });
 
-  const sources=[...sourceTotals.values()].sort((a,b)=>b.amount-a.amount).map((source,idx)=>({id:`source:${source.label}`,label:source.label,icon:source.icon,total:Number(source.amount||0),color:source.label==='Existing Balance'?'#94a3b8':CHART_COLORS[(idx+1)%CHART_COLORS.length]}));
-  const accounts=[...accountMeta.values()].sort((a,b)=>{const aTotal=Math.max(Number(accountInTotals.get(a.key)?.amount||0),Number(accountOutTotals.get(a.key)?.amount||0));const bTotal=Math.max(Number(accountInTotals.get(b.key)?.amount||0),Number(accountOutTotals.get(b.key)?.amount||0));return bTotal-aTotal}).map((account,idx)=>({id:`account:${account.key}`,key:account.key,label:account.label,icon:account.icon,total:Math.max(Number(accountInTotals.get(account.key)?.amount||0),Number(accountOutTotals.get(account.key)?.amount||0)),color:CHART_COLORS[(idx+5)%CHART_COLORS.length]}));
-  let spendingColorIndex=0;
-  let savingsColorIndex=7;
-  const categories=[...groupedCategories.values()].sort((a,b)=>{const groupOrder={spending:0,savings:1,other:2};if(groupOrder[a.group]!==groupOrder[b.group])return groupOrder[a.group]-groupOrder[b.group];return b.amount-a.amount}).map(category=>({id:`category:${category.label}`,label:category.label,icon:category.icon,group:category.group,total:Number(category.amount||0),color:category.label==='Other'?'#94a3b8':category.group==='savings'?CHART_COLORS[(savingsColorIndex++)%CHART_COLORS.length]:CHART_COLORS[(spendingColorIndex++)%CHART_COLORS.length]}));
+  let incomeColorIdx=0;
+  const sources=[...sourceTotals.values()].sort((a,b)=>b.amount-a.amount).map(source=>({id:`source:${source.label}`,label:source.label,icon:source.icon,total:Number(source.amount||0),color:source.label==='Existing Balance'?'#94a3b8':MONEY_FLOW_PALETTES.income[(incomeColorIdx++)%MONEY_FLOW_PALETTES.income.length]}));
+  const accounts=[...accountMeta.values()].sort((a,b)=>{const aTotal=Math.max(Number(accountInTotals.get(a.key)?.amount||0),Number(accountOutTotals.get(a.key)?.amount||0));const bTotal=Math.max(Number(accountInTotals.get(b.key)?.amount||0),Number(accountOutTotals.get(b.key)?.amount||0));return bTotal-aTotal}).map((account,idx)=>{
+    const realIn=Number(accountRealIncomeMap.get(account.key)||0);
+    const out=Number(accountOutTotals.get(account.key)?.amount||0);
+    return{id:`account:${account.key}`,key:account.key,label:account.label,icon:account.icon,total:Math.max(Number(accountInTotals.get(account.key)?.amount||0),out),color:MONEY_FLOW_PALETTES.account[idx%MONEY_FLOW_PALETTES.account.length],netChange:realIn-out,realIn,outflow:out};
+  });
+  let spendingColorIdx=0;
+  let savingsColorIdx=0;
+  const categories=[...groupedCategories.values()].sort((a,b)=>{const groupOrder={spending:0,savings:1,other:2};const ag=groupOrder[a.group]??99;const bg=groupOrder[b.group]??99;if(ag!==bg)return ag-bg;return b.amount-a.amount}).map(category=>{
+    let color;
+    if(category.label==='Other')color='#94a3b8';
+    else if(category.group==='savings')color=MONEY_FLOW_PALETTES.savings[(savingsColorIdx++)%MONEY_FLOW_PALETTES.savings.length];
+    else color=MONEY_FLOW_PALETTES.spending[(spendingColorIdx++)%MONEY_FLOW_PALETTES.spending.length];
+    const stat=groupedCategoryStats.get(category.label)||{count:0,topNote:'',entries:[]};
+    return{id:`category:${category.label}`,label:category.label,icon:category.icon,group:category.group,total:Number(category.amount||0),color,txCount:Number(stat.count||0),topNote:String(stat.topNote||''),topEntries:Array.isArray(stat.entries)?stat.entries.slice(0,5):[]};
+  });
+  const accountKeySet=new Set(accounts.map(account=>account.key));
+  const monthTransfers=Array.isArray(transfers)?transfers.filter(t=>(t&&(t.date||'').slice(0,7)===monthKey&&Number(t.amount||0)>0&&t.from&&t.to&&!isExternalTransfer(t)&&accountKeySet.has(t.from)&&accountKeySet.has(t.to)&&t.from!==t.to)):[];
+  const transferLinks=monthTransfers.map(t=>({id:`transfer:${t.id}`,source:`account:${t.from}`,target:`account:${t.to}`,value:Number(t.amount||0),fee:Number(t.fee||0),note:String(t.note||'').trim()}));
+  const transferTotal=transferLinks.reduce((sum,link)=>sum+Number(link.value||0),0);
 
   const sourceColorByLabel=new Map(sources.map(source=>[source.label,source.color]));
   const categoryColorByLabel=new Map(categories.map(category=>[category.label,category.color]));
   const accountRank=new Map(accounts.map((account,idx)=>[account.key,idx]));
   const categoryRank=new Map(categories.map((category,idx)=>[category.label,idx]));
+  const totalIncomeWithBalance=Number(monthIncomes.reduce((sum,income)=>sum+Number(income.amount||0),0))+Number(sourceTotals.get('Existing Balance')?.amount||0);
+  const totalOutflowAll=Number(monthEntries.reduce((sum,entry)=>sum+Number(entry.amount||0),0));
+  const computeAvgDay=ds=>(ds&&ds.weight>0)?Math.max(1,Math.min(31,Math.round(ds.sum/ds.weight))):null;
   const links=[
-    ...[...sourceAccountFlows.values()].sort((a,b)=>(sourceTotals.get(b.source)?.amount||0)-(sourceTotals.get(a.source)?.amount||0)||((accountRank.get(a.account)??0)-(accountRank.get(b.account)??0))).map(flow=>({id:`source:${flow.source}->account:${flow.account}`,source:`source:${flow.source}`,target:`account:${flow.account}`,value:Number(flow.amount||0),color:rgbaFromHex(sourceColorByLabel.get(flow.source),.42)})),
-    ...[...accountCategoryFlows.values()].sort((a,b)=>(accountRank.get(a.account)??0)-(accountRank.get(b.account)??0)||((categoryRank.get(a.label)??0)-(categoryRank.get(b.label)??0))).map(flow=>({id:`account:${flow.account}->category:${flow.label}`,source:`account:${flow.account}`,target:`category:${flow.label}`,value:Number(flow.amount||0),color:rgbaFromHex(categoryColorByLabel.get(flow.label),.40)}))
+    ...[...sourceAccountFlows.values()].sort((a,b)=>(sourceTotals.get(b.source)?.amount||0)-(sourceTotals.get(a.source)?.amount||0)||((accountRank.get(a.account)??0)-(accountRank.get(b.account)??0))).map(flow=>{
+      const value=Number(flow.amount||0);
+      const dayKey=`${flow.source}|||${flow.account}`;
+      const avgDay=computeAvgDay(sourceAccountDates.get(dayKey));
+      return{id:`source:${flow.source}->account:${flow.account}`,source:`source:${flow.source}`,target:`account:${flow.account}`,value,color:rgbaFromHex(sourceColorByLabel.get(flow.source),.42),baseColor:sourceColorByLabel.get(flow.source)||'#94a3b8',pct:totalIncomeWithBalance>0?Math.round((value/totalIncomeWithBalance)*100):0,avgDay,stage:'income'};
+    }),
+    ...[...accountCategoryFlows.values()].sort((a,b)=>(accountRank.get(a.account)??0)-(accountRank.get(b.account)??0)||((categoryRank.get(a.label)??0)-(categoryRank.get(b.label)??0))).map(flow=>{
+      const value=Number(flow.amount||0);
+      const dayKey=`${flow.account}|||${flow.label}`;
+      const avgDay=computeAvgDay(accountCategoryDates.get(dayKey));
+      return{id:`account:${flow.account}->category:${flow.label}`,source:`account:${flow.account}`,target:`category:${flow.label}`,value,color:rgbaFromHex(categoryColorByLabel.get(flow.label),.40),baseColor:categoryColorByLabel.get(flow.label)||'#94a3b8',pct:totalOutflowAll>0?Math.round((value/totalOutflowAll)*100):0,avgDay,stage:'outflow'};
+    })
   ];
 
   return{
@@ -992,7 +1096,9 @@ function buildMoneyFlowData(monthKey=currentMonthKey()){
     totalOutflow:monthEntries.reduce((sum,entry)=>sum+Number(entry.amount||0),0),
     savingsOutflow:categories.filter(category=>category.group==='savings').reduce((sum,category)=>sum+category.total,0),
     existingBalanceUsed:Number(sourceTotals.get('Existing Balance')?.amount||0),
-    accountsUsed:accounts.length
+    accountsUsed:accounts.length,
+    transferLinks,
+    transferTotal
   };
 }
 const MONEY_FLOW_ZOOM_MIN=.4;
@@ -1030,22 +1136,72 @@ function setMoneyFlowViewerTheme(theme){
 function getMoneyFlowMonthLabel(monthKey=currentMonthKey()){
   return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-PH',{month:'short',year:'numeric'});
 }
-function getMoneyFlowSummaryMarkup(data){
+function getMoneyFlowDeltaMarkup(curr,prev,direction){
+  const c=Number(curr||0);
+  const p=Number(prev||0);
+  if(p===0&&c===0)return'';
+  if(p===0)return`<span class="money-flow-sub money-flow-sub-muted" title="No data for last month">new</span>`;
+  const diff=c-p;
+  if(diff===0)return`<span class="money-flow-sub money-flow-sub-muted" title="Same as last month">—</span>`;
+  const goingUp=diff>0;
+  const goodDirection=direction==='lower-good'?!goingUp:goingUp;
+  const cls=goodDirection?'money-flow-sub-good':'money-flow-sub-bad';
+  const arrow=goingUp?'▲':'▼';
+  return`<span class="money-flow-sub ${cls}" title="vs last month">${arrow} ${fmtShort(Math.abs(diff))}</span>`;
+}
+function getMoneyFlowSummaryMarkup(data,prevData){
   if(!data||!data.hasActivity)return'';
+  const prev=prevData&&prevData.hasActivity?prevData:null;
   const spendingOutflow=Math.max(Number(data.totalOutflow||0)-Number(data.savingsOutflow||0),0);
-  const summaryPills=[
-    `<div class="money-flow-pill money-flow-pill-income">Income <strong>${fmtShort(data.totalIncome)}</strong></div>`,
-    `<div class="money-flow-pill money-flow-pill-spending">Spending <strong>${fmtShort(spendingOutflow)}</strong></div>`,
-    `<div class="money-flow-pill money-flow-pill-savings">Savings <strong>${fmtShort(data.savingsOutflow)}</strong></div>`,
-    `<div class="money-flow-pill">${data.accountsUsed} account${data.accountsUsed===1?"":"s"}</div>`
-  ];
-  if(data.existingBalanceUsed>0)summaryPills.push(`<div class="money-flow-pill money-flow-pill-balance">Balance <strong>${fmtShort(data.existingBalanceUsed)}</strong></div>`);
-  return summaryPills.join("");
+  const prevSpendingOutflow=prev?Math.max(Number(prev.totalOutflow||0)-Number(prev.savingsOutflow||0),0):0;
+  const netFlow=Number(data.totalIncome||0)-Number(data.totalOutflow||0);
+  const netSign=netFlow<0?'−':netFlow>0?'+':'';
+  const netToneClass=netFlow<0?'is-deficit':netFlow>0?'is-surplus':'is-zero';
+  const spendingDelta=getMoneyFlowDeltaMarkup(spendingOutflow,prevSpendingOutflow,'lower-good');
+  const overspending=spendingOutflow>Number(data.totalIncome||0);
+  const incomeBase=Math.max(Number(data.totalIncome||0),1);
+  const pacePct=Math.round((spendingOutflow/incomeBase)*100);
+  const paceClampedFill=Math.min(100,pacePct);
+  const paceOverFill=Math.max(0,Math.min(100,pacePct-100));
+  const paceText=Number(data.totalIncome||0)<=0?'No income tracked yet'
+    :overspending?`${pacePct}% of income · ${fmtShort(spendingOutflow-Number(data.totalIncome||0))} over`
+    :pacePct>=85?`${pacePct}% of income · near limit`
+    :`${pacePct}% of income`;
+  const paceFillClass=overspending?'is-over':pacePct>=85?'is-warn':'is-safe';
+  return`<div class="mf-stats-panel">
+    <div class="mf-stats-hero">
+      <div class="mf-stats-hero-row">
+        <span class="mf-stats-hero-label">Spending this month</span>
+        ${spendingDelta?`<span class="mf-stats-hero-delta">${spendingDelta}</span>`:''}
+      </div>
+      <div class="mf-stats-hero-amount ${overspending?'is-over':''}">${fmt(Math.round(spendingOutflow))}</div>
+      <div class="mf-stats-pace">
+        <div class="mf-stats-pace-bar"><div class="mf-stats-pace-fill ${paceFillClass}" style="width:${paceClampedFill}%"></div>${paceOverFill>0?`<div class="mf-stats-pace-over" style="width:${paceOverFill}%"></div>`:''}</div>
+        <span class="mf-stats-pace-text">${esc(paceText)}</span>
+      </div>
+    </div>
+    <div class="mf-stats-row">
+      <div class="mf-stats-cell">
+        <span class="mf-stats-cell-label">Income</span>
+        <span class="mf-stats-cell-val is-income">${fmtShort(data.totalIncome)}</span>
+      </div>
+      <div class="mf-stats-cell">
+        <span class="mf-stats-cell-label">Savings</span>
+        <span class="mf-stats-cell-val is-savings">${fmtShort(data.savingsOutflow)}</span>
+      </div>
+      <div class="mf-stats-cell">
+        <span class="mf-stats-cell-label">Net</span>
+        <span class="mf-stats-cell-val ${netToneClass}">${netSign}${fmtShort(Math.abs(netFlow))}</span>
+      </div>
+    </div>
+  </div>`;
 }
 function getMoneyFlowInsight(data){
   if(!data||!data.hasActivity)return "A live view of how money moves through your accounts this month.";
   const total=Number(data.totalOutflow||0);
   const savings=Number(data.savingsOutflow||0);
+  const netFlow=Number(data.totalIncome||0)-total;
+  if(netFlow<0)return `You spent ${fmtShort(Math.abs(netFlow))} more than you earned this month. Tap the chart to see where it went.`;
   if(total<=0)return "Money is moving. Tap the chart to explore the full breakdown.";
   const savePct=Math.round(savings/total*100);
   const spendPct=100-savePct;
@@ -1054,14 +1210,18 @@ function getMoneyFlowInsight(data){
   return "All outflow went to spending this month. Tap the chart to see where it went.";
 }
 function getMoneyFlowCaption(data){
-  return data&&data.existingBalanceUsed>0?"Small categories grouped into Other. Existing Balance shown when an account spent more than its recorded income.":"Small categories grouped into Other.";
+  const bits=[];
+  if(data&&data.accountsUsed)bits.push(`${data.accountsUsed} account${data.accountsUsed===1?'':'s'}`);
+  if(data&&data.existingBalanceUsed>0)bits.push(`${fmtShort(data.existingBalanceUsed)} from existing balance`);
+  return bits.join(' · ');
 }
 const MONEY_FLOW_FILTERS=[
   {key:'all',label:'All'},
   {key:'income',label:'Income'},
   {key:'spending',label:'Spending'},
   {key:'savings',label:'Savings'},
-  {key:'debt',label:'Debt'}
+  {key:'debt',label:'Debt'},
+  {key:'transfers',label:'Transfers'}
 ];
 let moneyFlowViewerFilter='all';
 let moneyFlowViewerSelection=null;
@@ -1131,6 +1291,12 @@ function getMoneyFlowFilterContext(data,filterMode=moneyFlowViewerFilter){
     const accountIds=new Set(debtLinks.map(link=>link.source));
     debtLinks.forEach(addLink);
     sourceLinks.filter(link=>accountIds.has(link.target)).forEach(addLink);
+    return{linkIds,nodeIds};
+  }
+  if(filterMode==='transfers'){
+    const transferAccountIds=new Set();
+    (data?.transferLinks||[]).forEach(t=>{transferAccountIds.add(t.source);transferAccountIds.add(t.target);});
+    transferAccountIds.forEach(id=>nodeIds.add(id));
     return{linkIds,nodeIds};
   }
   allLinks.forEach(addLink);
@@ -1229,17 +1395,53 @@ function getMoneyFlowDefaultTrayData(data,state){
   };
 }
 function getMoneyFlowPeekDrawerMarkup(data,state){
-  const summary=getMoneyFlowDefaultTrayData(data,state);
-  const routeCount=summary.visibleLinks.length;
-  const routeLabel=`${routeCount} route${routeCount===1?'':'s'}`;
-  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-peek" id="money-flow-detail-drawer" data-drawer-mode="peek">${getMoneyFlowDrawerHandleMarkup({label:'Flow map',meta:routeCount?String(routeCount):'0',ariaLabel:'Show money flow details'})}</div>`;
+  const breakdown=getMoneyFlowBreakdownItems(data,state);
+  const peekLabel=(state.filterMode||'all')==='income'?'Where it came from':'Where it went';
+  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-peek" id="money-flow-detail-drawer" data-drawer-mode="peek">${getMoneyFlowDrawerHandleMarkup({label:peekLabel,meta:breakdown.length?String(breakdown.length):'0',ariaLabel:'Show money flow breakdown'})}</div>`;
+}
+function getMoneyFlowBreakdownItems(data,state){
+  const filterMode=state.filterMode||'all';
+  if(filterMode==='income'){
+    return(data.sources||[]).filter(s=>state.visibleNodeIds.has(s.id)).sort((a,b)=>(b.total||0)-(a.total||0)).map(s=>({...s,kind:'source'}));
+  }
+  return(data.categories||[]).filter(c=>state.visibleNodeIds.has(c.id)).sort((a,b)=>(b.total||0)-(a.total||0)).map(c=>({...c,kind:'category'}));
+}
+function getMoneyFlowBreakdownTotal(data,state){
+  const filterMode=state.filterMode||'all';
+  if(filterMode==='income')return Number(data.totalIncome||0)+Number(data.existingBalanceUsed||0);
+  if(filterMode==='savings')return Number(data.savingsOutflow||0);
+  if(filterMode==='spending')return Math.max(Number(data.totalOutflow||0)-Number(data.savingsOutflow||0),0);
+  return Number(data.totalOutflow||0);
+}
+function getMoneyFlowBreakdownRowMarkup(item,total,state){
+  const value=Number(item.total||0);
+  const pct=total>0?Math.round((value/total)*100):0;
+  const trackPct=total>0?Math.min(100,(value/total)*100):0;
+  const subBits=[];
+  if(pct>0)subBits.push(`${pct}%`);
+  if(item.kind==='category'&&Number(item.txCount||0)>0)subBits.push(`${item.txCount} tx`);
+  if(item.topNote)subBits.push(esc(item.topNote.length>22?item.topNote.slice(0,21)+'…':item.topNote));
+  const isSelected=state.selectedNodeIds.has(item.id);
+  const groupClass=item.group?` money-flow-breakdown-row-${item.group}`:'';
+  const safeId=encodeURIComponent(item.id);
+  return`<button class="money-flow-breakdown-row${isSelected?' is-selected':''}${groupClass}" type="button" data-node-id="${safeId}" onclick="handleMoneyFlowNodeTap(decodeURIComponent('${safeId}'))"><span class="money-flow-breakdown-accent" style="background:${item.color}"></span><span class="money-flow-breakdown-main"><span class="money-flow-breakdown-label">${item.icon?`${esc(item.icon)} `:''}${esc(item.label)}</span><span class="money-flow-breakdown-track"><span class="money-flow-breakdown-track-fill" style="width:${trackPct.toFixed(1)}%;background:${item.color}"></span></span>${subBits.length?`<span class="money-flow-breakdown-sub">${subBits.join(' · ')}</span>`:''}</span><span class="money-flow-breakdown-amount">${fmtShort(value)}</span></button>`;
 }
 function getMoneyFlowDefaultTrayMarkup(data,state){
   const summary=getMoneyFlowDefaultTrayData(data,state);
+  const filterMode=state.filterMode||'all';
+  const breakdown=getMoneyFlowBreakdownItems(data,state);
+  const breakdownTotal=getMoneyFlowBreakdownTotal(data,state);
+  const isIncomeMode=filterMode==='income';
+  const trayTitle=isIncomeMode?'Where it came from':'Where it went';
+  const totalLabel=isIncomeMode?'Total in':filterMode==='savings'?'Saved':filterMode==='spending'?'Spent':'Total out';
   if(!summary.visibleLinks.length){
-    return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open money-flow-detail-tray-compact" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(getMoneyFlowFilterLabel(summary.filterMode))}</div><div class="money-flow-detail-title">No matching routes</div></div></div><div class="money-flow-detail-hint">This filter does not have tracked flow in ${esc(summary.monthLabel)}. Try another filter or switch back to All.</div></div></div>`;
+    return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open money-flow-detail-tray-compact" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true,label:trayTitle})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(getMoneyFlowFilterLabel(summary.filterMode))}</div><div class="money-flow-detail-title">No matching routes</div></div></div><div class="money-flow-detail-hint">This filter does not have tracked flow in ${esc(summary.monthLabel)}. Try another filter or switch back to All.</div></div></div>`;
   }
-  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open money-flow-detail-tray-compact" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(summary.monthLabel)}</div><div class="money-flow-detail-title">${summary.trayTitle}</div></div><div class="money-flow-detail-pill">${summary.visibleLinks.length} route${summary.visibleLinks.length===1?'':'s'}</div></div><div class="money-flow-detail-stats money-flow-detail-stats-compact"><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Top in</span><strong>${summary.topSource?`${esc(summary.topSource.label)} ${fmtShort(summary.topSource.total)}`:'--'}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Top account</span><strong>${summary.topAccount?`${esc(summary.topAccount.label)} ${fmtShort(summary.topAccount.total)}`:'--'}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">${summary.filterMode==='income'?'Tracked inflow':'Top outflow'}</span><strong>${summary.filterMode==='income'?fmtShort(summary.trackedTotal):(summary.topOutflow?`${esc(summary.topOutflow.label)} ${fmtShort(summary.topOutflow.total)}`:'--')}</strong></div></div><div class="money-flow-detail-hint">${summary.trayHint} Tracked total: ${fmt(summary.trackedTotal)}.</div></div></div>`;
+  const breakdownRows=breakdown.length?breakdown.map(item=>getMoneyFlowBreakdownRowMarkup(item,breakdownTotal,state)).join(''):'<div class="money-flow-detail-hint">No items to break down for this filter.</div>';
+  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true,label:trayTitle,meta:String(breakdown.length)})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${esc(summary.monthLabel)}</div><div class="money-flow-detail-title">${esc(trayTitle)}</div><div class="money-flow-detail-sub">${esc(totalLabel)}: <strong>${fmt(breakdownTotal)}</strong></div></div><div class="money-flow-detail-pill">${breakdown.length} item${breakdown.length===1?'':'s'}</div></div><div class="money-flow-breakdown-list">${breakdownRows}</div><div class="money-flow-detail-hint">Tap a row to highlight that ${isIncomeMode?'source':'category'} in the chart. Double tap empty space to reset.</div></div></div>`;
+}
+function getMoneyFlowBackButtonMarkup(){
+  return`<button type="button" class="money-flow-detail-back" aria-label="Back to overview" title="Back to overview" onclick="clearMoneyFlowSelection()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>`;
 }
 function getMoneyFlowSelectionTrayMarkup(data,state){
   const nodeMap=getMoneyFlowNodeMap(data);
@@ -1252,7 +1454,7 @@ function getMoneyFlowSelectionTrayMarkup(data,state){
     const target=nodeMap.get(link.target);
     const shareBase=getMoneyFlowNodeKind(link.source)==='source'?((data.totalIncome||0)+(data.existingBalanceUsed||0)):Math.max(Number(data.totalOutflow||0),1);
     const routeType=getMoneyFlowNodeKind(link.source)==='source'?'Income route':'Outflow route';
-    return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${routeType}</div><div class="money-flow-detail-title">${source?esc(source.label):'Source'} to ${target?esc(target.label):'Target'}</div><div class="money-flow-detail-sub">This connector represents one tracked route in your money map.</div></div><div class="money-flow-detail-pill">${fmtShort(link.value)}</div></div><div class="money-flow-detail-stats"><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Route value</span><strong>${fmt(link.value)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Share</span><strong>${getMoneyFlowPercentLabel(link.value,shareBase)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Stage</span><strong>${routeType}</strong></div></div><div class="money-flow-detail-hint">Tap empty space to clear focus. Double tap empty space to reset zoom.</div></div></div>`;
+    return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open is-selection" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div class="money-flow-detail-head-titles">${getMoneyFlowBackButtonMarkup()}<div class="money-flow-detail-head-text"><div class="money-flow-detail-kicker">${routeType}</div><div class="money-flow-detail-title">${source?esc(source.label):'Source'} → ${target?esc(target.label):'Target'}</div></div></div><div class="money-flow-detail-pill">${fmtShort(link.value)}</div></div><div class="money-flow-detail-stats money-flow-detail-stats-row"><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Value</span><strong>${fmtShort(link.value)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Share</span><strong>${getMoneyFlowPercentLabel(link.value,shareBase)}</strong></div><div class="money-flow-detail-stat"><span class="money-flow-detail-label">Stage</span><strong>${routeType.replace(' route','')}</strong></div></div></div></div>`;
   }
   const node=nodeMap.get(state.selection.id);
   if(!node)return getMoneyFlowDefaultTrayMarkup(data,state);
@@ -1265,41 +1467,92 @@ function getMoneyFlowSelectionTrayMarkup(data,state){
   const topOut=nodeMap.get(outgoingLinks[0]?.target||'');
   const kind=getMoneyFlowNodeKind(node.id);
   let kicker='Node focus';
-  let subtitle='This node is part of the currently visible flow.';
   let stats=[];
   if(kind==='source'){
     kicker='Income source';
-    subtitle='Tracks how this source enters your accounts this month.';
     stats=[
-      {label:'Flow',value:fmt(node.total)},
+      {label:'Total',value:fmtShort(node.total)},
       {label:'Share',value:getMoneyFlowPercentLabel(node.total,(data.totalIncome||0)+(data.existingBalanceUsed||0))},
-      {label:'Sent to',value:topOut?esc(topOut.label):'--'}
+      {label:'Top to',value:topOut?esc(topOut.label):'—'}
     ];
   }else if(kind==='account'){
     kicker='Account';
-    subtitle='Shows what came into this account and where it went next.';
     stats=[
-      {label:'In',value:fmt(incomingTotal)},
-      {label:'Out',value:fmt(outgoingTotal)},
+      {label:'In',value:fmtShort(incomingTotal)},
+      {label:'Out',value:fmtShort(outgoingTotal)},
       {label:'Net',value:fmtSignedMoneyFlow(incomingTotal-outgoingTotal)}
     ];
   }else{
     kicker=node.label==='Debt Payment'?'Debt outflow':node.group==='savings'?'Savings outflow':'Spending outflow';
-    subtitle='Shows how much this category received from your tracked accounts.';
     stats=[
-      {label:'Received',value:fmt(incomingTotal||node.total)},
+      {label:'Received',value:fmtShort(incomingTotal||node.total)},
       {label:'Share',value:getMoneyFlowPercentLabel(node.total,Math.max(Number(data.totalOutflow||0),1))},
-      {label:'From',value:topIn?esc(topIn.label):'--'}
+      {label:'From',value:topIn?esc(topIn.label):'—'}
     ];
   }
-  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div><div class="money-flow-detail-kicker">${kicker}</div><div class="money-flow-detail-title">${esc(node.label)}</div><div class="money-flow-detail-sub">${subtitle}</div></div><div class="money-flow-detail-pill">${connectedLinks.length} route${connectedLinks.length===1?'':'s'}</div></div><div class="money-flow-detail-stats">${stats.map(stat=>`<div class="money-flow-detail-stat"><span class="money-flow-detail-label">${stat.label}</span><strong>${stat.value}</strong></div>`).join('')}</div><div class="money-flow-detail-hint">${topOut?`Largest next step: ${esc(topOut.label)}.`:topIn?`Largest source: ${esc(topIn.label)}.`:'Tap empty space to clear focus.'} Double tap empty space to reset zoom.</div></div></div>`;
+  const isCategoryNode=kind==='category';
+  const txMarkup=isCategoryNode?getMoneyFlowTopEntriesMarkup(node):'';
+  const canOpenHistory=isCategoryNode&&node.label&&node.label!=='Other'&&node.label!=='Leftover';
+  const historyBtn=canOpenHistory?`<button type="button" class="money-flow-history-btn" onclick="openMoneyFlowCategoryInHistory('${esc(String(node.label).replace(/'/g,"\\'"))}')">Open in History →</button>`:'';
+  return`<div class="money-flow-detail-tray money-flow-side-drawer money-flow-side-drawer-open is-selection" id="money-flow-detail-drawer" data-drawer-mode="open">${getMoneyFlowDrawerHandleMarkup({expanded:true})}<div class="money-flow-side-drawer-panel"><div class="money-flow-detail-head"><div class="money-flow-detail-head-titles">${getMoneyFlowBackButtonMarkup()}<div class="money-flow-detail-head-text"><div class="money-flow-detail-kicker">${kicker}</div><div class="money-flow-detail-title">${esc(node.label)}</div></div></div><div class="money-flow-detail-pill">${connectedLinks.length} route${connectedLinks.length===1?'':'s'}</div></div><div class="money-flow-detail-stats money-flow-detail-stats-row">${stats.map(stat=>`<div class="money-flow-detail-stat"><span class="money-flow-detail-label">${stat.label}</span><strong>${stat.value}</strong></div>`).join('')}</div>${txMarkup}${historyBtn}</div></div>`;
 }
 function getMoneyFlowDetailTrayMarkup(data,state){
   if(moneyFlowDrawerMode==='peek')return getMoneyFlowPeekDrawerMarkup(data,state);
   return state.selection?getMoneyFlowSelectionTrayMarkup(data,state):getMoneyFlowDefaultTrayMarkup(data,state);
 }
 function getMoneyFlowFilterChipsMarkup(){
-  return`<div class="money-flow-filter-bar">${MONEY_FLOW_FILTERS.map(filter=>`<button class="money-flow-filter-chip ${moneyFlowViewerFilter===filter.key?'active':''}" type="button" aria-pressed="${moneyFlowViewerFilter===filter.key?'true':'false'}" onclick="setMoneyFlowFilter('${filter.key}')">${filter.label}</button>`).join('')}</div>`;
+  return`<div class="mf-fs-segmented" role="tablist">${MONEY_FLOW_FILTERS.map(filter=>`<button class="mf-fs-segment ${moneyFlowViewerFilter===filter.key?'is-active':''}" type="button" role="tab" aria-pressed="${moneyFlowViewerFilter===filter.key?'true':'false'}" onclick="setMoneyFlowFilter('${filter.key}')">${filter.label}</button>`).join('')}</div>`;
+}
+function openMoneyFlowCategoryInHistory(label){
+  const target=String(label||'').trim();
+  if(!target||target==='Other'||target==='Leftover')return;
+  closeMoneyFlowFullscreen();
+  try{
+    if(typeof setHistorySelectedCategories==='function')setHistorySelectedCategories([target]);
+    if(typeof setHistoryQuickPreset==='function')setHistoryQuickPreset('thisMonth');
+    if(typeof showTab==='function')showTab('history');
+    if(typeof render==='function')render();
+    if(typeof showActionToast==='function')showActionToast('Filtered to category',target,'🔍');
+  }catch(err){console&&console.warn&&console.warn('openMoneyFlowCategoryInHistory failed',err);}
+}
+function clearMoneyFlowSelection(){
+  if(!moneyFlowViewerSelection)return;
+  moneyFlowViewerSelection=null;
+  moneyFlowDrawerMode='summary';
+  moneyFlowLastBackgroundTapAt=0;
+  rerenderMoneyFlowFullscreen(true);
+}
+function formatMoneyFlowDate(dateStr){
+  const raw=String(dateStr||'').slice(0,10);
+  if(!raw)return'';
+  const d=new Date(`${raw}T00:00:00`);
+  if(isNaN(d.getTime()))return raw.slice(5);
+  return d.toLocaleDateString('en-PH',{month:'short',day:'numeric'});
+}
+function stripCategoryPrefix(note,categoryLabel){
+  const text=String(note||'').trim();
+  const cat=String(categoryLabel||'').trim();
+  if(!cat||!text)return text;
+  const lower=text.toLowerCase();
+  const prefix=cat.toLowerCase()+':';
+  if(lower.startsWith(prefix))return text.slice(prefix.length).trim();
+  return text;
+}
+function getMoneyFlowTopEntriesMarkup(node){
+  const list=Array.isArray(node?.topEntries)?node.topEntries:[];
+  if(!list.length)return'';
+  const categoryLabel=String(node?.label||'').trim();
+  const rows=list.slice(0,5).map(entry=>{
+    const cleanedNote=stripCategoryPrefix(entry.note,categoryLabel);
+    const accountInfo=entry.account?(typeof getAccountInfo==='function'?getAccountInfo(entry.account):{name:''}):{name:''};
+    const title=cleanedNote||accountInfo.name||categoryLabel||'Transaction';
+    const dateNice=formatMoneyFlowDate(entry.date);
+    const metaBits=[];
+    if(dateNice)metaBits.push(dateNice);
+    if(accountInfo.name&&cleanedNote)metaBits.push(accountInfo.name);
+    return`<div class="money-flow-tx-row"><div class="money-flow-tx-meta"><span class="money-flow-tx-note">${esc(title)}</span>${metaBits.length?`<span class="money-flow-tx-date">${esc(metaBits.join(' · '))}</span>`:''}</div><span class="money-flow-tx-amount">${fmt(Number(entry.amount||0))}</span></div>`;
+  }).join('');
+  return`<div class="money-flow-tx-list"><div class="money-flow-tx-head">Top transactions</div>${rows}</div>`;
 }
 function makeMoneyFlowSvg(data,opts={}){
   const width=opts.width||960;
@@ -1350,10 +1603,11 @@ function makeMoneyFlowSvg(data,opts={}){
   });
 
   const nodeById=new Map([...data.sources,...data.accounts,...data.categories].map(node=>[node.id,node]));
-  const paths=data.links.map(link=>{
+  const svgIdSafe=(opts.svgId||'mf').replace(/[^a-z0-9]/gi,'');
+  const linkGeom=data.links.map(link=>{
     const source=nodeById.get(link.source);
     const target=nodeById.get(link.target);
-    if(!source||!target)return'';
+    if(!source||!target)return null;
     const thickness=Math.max(Number(link.value||0)*scale,6);
     const x1=source.x+nodeWidth;
     const y1=source.y+source.outOffset+(thickness/2);
@@ -1361,24 +1615,47 @@ function makeMoneyFlowSvg(data,opts={}){
     const x2=target.x;
     const y2=target.y+target.inOffset+(thickness/2);
     target.inOffset+=thickness;
-    const curve=Math.max((x2-x1)*.38,48);
+    const gradId=`${svgIdSafe}_g_${link.id.replace(/[^a-z0-9]/gi,'_')}`;
+    return{link,thickness,x1,y1,x2,y2,midX:(x1+x2)/2,midY:(y1+y2)/2,gradId};
+  });
+  const gradientDefs=linkGeom.filter(Boolean).map(g=>{
+    const day=Number(g.link.avgDay||15);
+    const endAlpha=0.20+Math.min(31,Math.max(1,day))/31*0.42;
+    const base=g.link.baseColor||'#94a3b8';
+    return`<linearGradient id="${g.gradId}" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${rgbaFromHex(base,0.12)}"/><stop offset="100%" stop-color="${rgbaFromHex(base,endAlpha)}"/></linearGradient>`;
+  }).join('');
+  const paths=linkGeom.filter(Boolean).map(g=>{
+    const curve=Math.max((g.x2-g.x1)*.38,48);
     const linkClasses=['money-flow-link'];
     if(interactive){
       linkClasses.push('is-interactive');
       if(focusMode){
-        if(viewState?.selectedLinkIds.has(link.id))linkClasses.push('is-selected');
-        else if(viewState?.activeLinkIds.has(link.id))linkClasses.push('is-active');
+        if(viewState?.selectedLinkIds.has(g.link.id))linkClasses.push('is-selected');
+        else if(viewState?.activeLinkIds.has(g.link.id))linkClasses.push('is-active');
         else linkClasses.push('is-muted');
       }
     }
-    const dataAttr=interactive?` data-link-id="${encodeURIComponent(link.id)}"`:'';
-    return`<path class="${linkClasses.join(' ')}"${dataAttr} d="M ${x1} ${y1} C ${x1+curve} ${y1}, ${x2-curve} ${y2}, ${x2} ${y2}" stroke="${link.color}" stroke-width="${thickness}"></path>`;
+    const dataAttr=interactive?` data-link-id="${encodeURIComponent(g.link.id)}"`:'';
+    return`<path class="${linkClasses.join(' ')}"${dataAttr} d="M ${g.x1} ${g.y1} C ${g.x1+curve} ${g.y1}, ${g.x2-curve} ${g.y2}, ${g.x2} ${g.y2}" stroke="url(#${g.gradId})" stroke-width="${g.thickness}"></path>`;
+  }).join('');
+  const linkLabels=linkGeom.filter(g=>g&&Number(g.link.pct||0)>=5&&g.thickness>=14).map(g=>{
+    const isFocused=interactive&&focusMode&&!(viewState?.activeLinkIds.has(g.link.id));
+    if(isFocused)return'';
+    const w=g.link.pct>=10?34:28;
+    return`<g class="money-flow-link-pct" pointer-events="none"><rect x="${g.midX-w/2}" y="${g.midY-9}" width="${w}" height="18" rx="6"></rect><text x="${g.midX}" y="${g.midY+4}" text-anchor="middle">${g.link.pct}%</text></g>`;
   }).join('');
 
   const stageLabels=[{x:xPositions[0]+nodeWidth/2,label:'Income'},{x:xPositions[1]+nodeWidth/2,label:'Accounts'},{x:xPositions[2]+nodeWidth/2,label:'Outflows'}];
   const nodes=[...data.sources,...data.accounts,...data.categories].map(node=>{
+    const isAccountNode=node.id.startsWith('account:');
     const label=`${node.icon?`${node.icon} `:''}${truncateMoneyFlowLabel(node.label,node.id.startsWith('category:')?labelMaxCategory:labelMaxDefault)}`;
     const amountLine=node.height>=Math.max(38,subLabelY+4)?`<text class="money-flow-node-sub" x="${node.x+labelX}" y="${node.y+subLabelY}">${esc(fmtShort(node.total))}</text>`:'';
+    let netLine='';
+    if(isAccountNode&&Number.isFinite(node.netChange)&&node.height>=subLabelY+22){
+      const positive=Number(node.netChange)>=0;
+      const sign=positive?'+':'−';
+      netLine=`<text class="money-flow-node-net ${positive?'is-pos':'is-neg'}" x="${node.x+labelX}" y="${node.y+subLabelY+14}">${sign}${esc(fmtShort(Math.abs(node.netChange)))} net</text>`;
+    }
     const nodeClasses=['money-flow-node-group'];
     if(interactive){
       nodeClasses.push('is-interactive');
@@ -1389,11 +1666,31 @@ function makeMoneyFlowSvg(data,opts={}){
       }
     }
     const dataAttr=interactive?` data-node-id="${encodeURIComponent(node.id)}"`:'';
-    return`<g class="${nodeClasses.join(' ')}"${dataAttr}><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-tint" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}" fill-opacity="0.07"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}</g>`;
+    return`<g class="${nodeClasses.join(' ')}"${dataAttr}><rect class="money-flow-node" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}"></rect><rect class="money-flow-node-tint" x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}" fill-opacity="0.07"></rect><rect class="money-flow-node-accent" x="${node.x}" y="${node.y}" width="${accentWidth}" height="${node.height}" rx="${nodeRadius}" fill="${node.color}"></rect><text class="money-flow-node-label" x="${node.x+labelX}" y="${node.y+labelY}">${esc(label)}</text>${amountLine}${netLine}</g>`;
   }).join('');
-  const defs=linkClipRects.length?`<defs><clipPath id="${linkClipId}" clipPathUnits="userSpaceOnUse">${linkClipRects.map(rect=>`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>`).join('')}</clipPath></defs>`:'';
+  const transferLinks=Array.isArray(data.transferLinks)?data.transferLinks:[];
+  const showTransfers=interactive?(opts.filterMode||moneyFlowViewerFilter)!=='income':true;
+  const transferPaths=showTransfers?transferLinks.map(t=>{
+    const source=nodeById.get(t.source);
+    const target=nodeById.get(t.target);
+    if(!source||!target||source===target)return null;
+    const sx=source.x+nodeWidth-2;
+    const sy=source.y+source.height/2;
+    const tx=target.x+nodeWidth-2;
+    const ty=target.y+target.height/2;
+    const offset=Math.max(38,Math.abs(sy-ty)*.25+30);
+    const cx=Math.max(sx,tx)+offset;
+    const midX=(sx+cx+cx+tx)/4;
+    const midY=(sy+ty)/2;
+    const muted=interactive&&focusMode;
+    return{sx,sy,tx,ty,cx,midX,midY,value:Number(t.value||0),id:t.id,muted};
+  }).filter(Boolean):[];
+  const transferLayer=transferPaths.length?`<g class="money-flow-transfers" pointer-events="none">${transferPaths.map(p=>`<path class="money-flow-transfer-arc${p.muted?' is-muted':''}" d="M ${p.sx} ${p.sy} C ${p.cx} ${p.sy}, ${p.cx} ${p.ty}, ${p.tx} ${p.ty}"></path>${p.value>=1?`<g class="money-flow-transfer-label"><rect x="${p.midX-22}" y="${p.midY-9}" width="44" height="18" rx="6"></rect><text x="${p.midX}" y="${p.midY+4}" text-anchor="middle">↔ ${esc(fmtShort(p.value))}</text></g>`:''}`).join('')}</g>`:'';
+  const clipDef=linkClipRects.length?`<clipPath id="${linkClipId}" clipPathUnits="userSpaceOnUse">${linkClipRects.map(rect=>`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>`).join('')}</clipPath>`:'';
+  const defs=`<defs>${clipDef}${gradientDefs}</defs>`;
   const linkLayer=linkClipRects.length?`<g clip-path="url(#${linkClipId})">${paths}</g>`:`<g>${paths}</g>`;
-  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${defs}<g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text><line class="money-flow-stage-line" x1="${stage.x-28}" y1="${stageLabelY+7}" x2="${stage.x+28}" y2="${stageLabelY+7}" stroke-linecap="round"></line>`).join('')}</g>${linkLayer}<g>${nodes}</g></svg>`;
+  const linkLabelLayer=linkClipRects.length?`<g clip-path="url(#${linkClipId})">${linkLabels}</g>`:`<g>${linkLabels}</g>`;
+  return`<svg${svgIdAttr} class="${svgClass}" data-base-width="${width}" data-base-height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${defs}<g>${stageLabels.map(stage=>`<text class="money-flow-stage" x="${stage.x}" y="${stageLabelY}" text-anchor="middle">${stage.label}</text><line class="money-flow-stage-line" x1="${stage.x-28}" y1="${stageLabelY+7}" x2="${stage.x+28}" y2="${stageLabelY+7}" stroke-linecap="round"></line>`).join('')}</g>${linkLayer}${linkLabelLayer}<g>${nodes}</g>${transferLayer}</svg>`;
 }
 function applyMoneyFlowZoom(nextZoom=moneyFlowZoom){
   const svg=document.getElementById('money-flow-fullscreen-svg');
@@ -1750,11 +2047,16 @@ function renderMoneyFlowFullscreenContent(data=buildMoneyFlowData(),opts={}){
   }
   const viewState=getMoneyFlowViewState(data,moneyFlowViewerFilter,moneyFlowViewerSelection);
   moneyFlowViewerSelection=viewState.selection||null;
-  mount.innerHTML=`<div class="money-flow-fullscreen-viewer"><div class="money-flow-fullscreen-overlay"><div class="money-flow-fullscreen-topbar money-flow-fullscreen-topbar-controls"><div class="money-flow-fullscreen-controls"><button class="money-flow-overlay-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">-</button><button class="money-flow-overlay-btn" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">1x</button><button class="money-flow-overlay-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-light" type="button" aria-label="Use light mode" title="Light mode" onclick="setMoneyFlowViewerTheme('light')">&#9728;</button><button class="money-flow-overlay-btn money-flow-theme-btn" id="money-flow-theme-dark" type="button" aria-label="Use dark mode" title="Dark mode" onclick="setMoneyFlowViewerTheme('dark')">&#9790;</button><button class="money-flow-overlay-btn" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()">X</button></div></div></div><div class="money-flow-fullscreen-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month',interactive:true,filterMode:moneyFlowViewerFilter,selection:moneyFlowViewerSelection})}</div></div></div>`;
+  const detailTrayMarkup=getMoneyFlowDetailTrayMarkup(data,viewState);
+  const filterChipsMarkup=getMoneyFlowFilterChipsMarkup();
+  const monthLabel=getMoneyFlowMonthLabel(data.monthKey||currentMonthKey());
+  const spendingOutflow=Math.max(Number(data.totalOutflow||0)-Number(data.savingsOutflow||0),0);
+  mount.innerHTML=`<div class="money-flow-fullscreen-viewer mf-fs-viewer"><div class="money-flow-fullscreen-overlay mf-fs-overlay"><div class="money-flow-fullscreen-topbar mf-fs-topbar"><div class="mf-fs-topbar-left"><div class="mf-fs-month">${esc(monthLabel)}</div><div class="mf-fs-meta"><span class="mf-fs-meta-dot" aria-hidden="true"></span>${fmtShort(spendingOutflow)} spent</div></div><div class="mf-fs-topbar-center money-flow-fullscreen-controls">${filterChipsMarkup}</div><div class="mf-fs-topbar-right"><div class="mf-fs-zoom-cluster"><button class="mf-fs-icon-btn" id="money-flow-zoom-out" type="button" aria-label="Zoom out" title="Zoom out" onclick="stepMoneyFlowZoom(-1)">−</button><button class="mf-fs-icon-btn mf-fs-zoom-reset" id="money-flow-zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetMoneyFlowZoom()">100%</button><button class="mf-fs-icon-btn" id="money-flow-zoom-in" type="button" aria-label="Zoom in" title="Zoom in" onclick="stepMoneyFlowZoom(1)">+</button></div><span class="mf-fs-divider"></span><div class="mf-fs-theme-cluster"><button class="mf-fs-icon-btn money-flow-theme-btn" id="money-flow-theme-light" type="button" aria-label="Use light mode" title="Light mode" onclick="setMoneyFlowViewerTheme('light')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v1M12 20v1M3 12h1M20 12h1M5.6 5.6l.7.7M17.7 17.7l.7.7M5.6 18.4l.7-.7M17.7 6.3l.7-.7"/></svg></button><button class="mf-fs-icon-btn money-flow-theme-btn" id="money-flow-theme-dark" type="button" aria-label="Use dark mode" title="Dark mode" onclick="setMoneyFlowViewerTheme('dark')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 13a8.5 8.5 0 1 1-10-10 6.5 6.5 0 0 0 10 10z"/></svg></button></div><span class="mf-fs-divider"></span><button class="mf-fs-icon-btn mf-fs-close" type="button" aria-label="Close fullscreen money flow" title="Close" onclick="closeMoneyFlowFullscreen()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div></div><div class="money-flow-fullscreen-stage mf-fs-stage" id="money-flow-fullscreen-stage"><div class="money-flow-fullscreen-canvas mf-fs-canvas">${makeMoneyFlowSvg(data,{width:1600,height:900,nodeWidth:238,marginTop:64,marginBottom:24,gapY:22,minNodeHeight:26,labelMaxCategory:26,labelMaxDefault:24,stageLabelY:26,labelY:21,subLabelY:40,svgClass:'money-flow-svg money-flow-fullscreen-svg',svgId:'money-flow-fullscreen-svg',ariaLabel:'Fullscreen money flow Sankey diagram for the current month',interactive:true,filterMode:moneyFlowViewerFilter,selection:moneyFlowViewerSelection})}</div></div>${detailTrayMarkup}</div>`;
   applyMoneyFlowZoom(moneyFlowZoom);
   applyMoneyFlowViewerTheme();
   setupMoneyFlowStageGestures();
   setupMoneyFlowInteractiveHandlers();
+  setupMoneyFlowDrawerGestures();
   const stage=document.getElementById('money-flow-fullscreen-stage');
   if(stage&&opts.preserveViewport){
     stage.scrollLeft=previousScrollLeft;
@@ -1774,7 +2076,7 @@ async function openMoneyFlowFullscreen(){
   moneyFlowZoom=1;
   moneyFlowViewerFilter='all';
   moneyFlowViewerSelection=null;
-  moneyFlowDrawerMode='peek';
+  moneyFlowDrawerMode='summary';
   moneyFlowDrawerSuppressToggleUntil=0;
   moneyFlowSuppressTapUntil=0;
   moneyFlowLastBackgroundTapAt=0;
@@ -1814,7 +2116,9 @@ function renderMoneyFlowCard(){
     syncMoneyFlowFullscreen(data);
     return;
   }
-  mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Money Flow This Month</span>${headerActions}</div>${helpMode?'<div class="help-inline">Tracks this month\'s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-meta">${getMoneyFlowInsight(data)}</div><div class="money-flow-summary">${getMoneyFlowSummaryMarkup(data)}</div><div id="money-flow-chart" class="money-flow-chart money-flow-chart-preview" onclick="openMoneyFlowFullscreen()" title="Open fullscreen money flow view">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${getMoneyFlowCaption(data)} <span class="money-flow-inline-link">Tap the chart or use Fullscreen for a closer view.</span></div></div>`;
+  const caption=getMoneyFlowCaption(data);
+  const prevData=buildMoneyFlowData(getPreviousMonthKey(data.monthKey||currentMonthKey()));
+  mount.innerHTML=`<div class="card money-flow-card-shell"><div class="card-header"><span class="card-title">Money Flow</span>${headerActions}</div>${helpMode?'<div class="help-inline">Tracks this month\'s flow from income sources into accounts, then out into your biggest spending and savings categories.</div>':''}<div class="money-flow-summary">${getMoneyFlowSummaryMarkup(data,prevData)}</div><div id="money-flow-chart" class="money-flow-chart money-flow-chart-preview" onclick="openMoneyFlowFullscreen()" title="Open fullscreen money flow view">${makeMoneyFlowSvg(data)}</div><div class="money-flow-caption">${caption?`<span>${caption}</span>`:''}<span class="money-flow-inline-link">Tap to explore →</span></div></div>`;
   syncMoneyFlowFullscreen(data);
 }
 
@@ -2144,12 +2448,12 @@ function clearDeletedAccountSoftReferences(key){Object.values(addFlowState.lastE
 function getNetWorthSummary(){
   const assetAccounts=nwAccounts.filter(a=>a.accountType!=='credit_card');
   const creditCardAccounts=nwAccounts.filter(a=>a.accountType==='credit_card');
-  const assetTotal=assetAccounts.reduce((sum,account)=>sum+Number(nwBalances[account.key]||0),0);
-  const creditCardTotal=creditCardAccounts.reduce((sum,account)=>sum+Number(nwBalances[account.key]||0),0);
+  const assetTotal=roundMoney(assetAccounts.reduce((sum,account)=>sum+Number(nwBalances[account.key]||0),0));
+  const creditCardTotal=roundMoney(creditCardAccounts.reduce((sum,account)=>sum+Number(nwBalances[account.key]||0),0));
   const linkedDebtIds=new Set(creditCardAccounts.filter(account=>account.linkedDebtId).map(account=>String(account.linkedDebtId)));
-  const unlinkedDebtTotal=debts.reduce((sum,debt)=>linkedDebtIds.has(String(debt.id))?sum:sum+Number(debt.total||0),0);
-  const debtTotal=creditCardTotal+unlinkedDebtTotal;
-  return{assetAccounts,creditCardAccounts,assetTotal,creditCardTotal,unlinkedDebtTotal,debtTotal,net:assetTotal-debtTotal};
+  const unlinkedDebtTotal=roundMoney(debts.reduce((sum,debt)=>linkedDebtIds.has(String(debt.id))?sum:sum+Number(debt.total||0),0));
+  const debtTotal=roundMoney(creditCardTotal+unlinkedDebtTotal);
+  return{assetAccounts,creditCardAccounts,assetTotal,creditCardTotal,unlinkedDebtTotal,debtTotal,net:roundMoney(assetTotal-debtTotal)};
 }
 function getTrackedAssetBalance(){return getNetWorthSummary().assetTotal}
 function syncNwAccountBalanceField(){
@@ -2171,7 +2475,7 @@ function syncNwAccountBalanceField(){
   balanceInput.placeholder='e.g. 4800';
   if(linkedDebtId){
     const linkedDebt=debts.find(d=>String(d.id)===String(linkedDebtId));
-    if(linkedDebt)balanceInput.value=Math.max(0,Number(linkedDebt.total||0));
+    if(linkedDebt)balanceInput.value=moneyInputValue(Math.max(0,Number(linkedDebt.total||0)));
     balanceRow.style.display='none';
     renderNwModalPreview();
     return;
@@ -2217,16 +2521,16 @@ const NW_BANK_PRESETS=[
 function applyNwPreset(el,name,icon,type){document.getElementById('nw-acc-name').value=name;document.getElementById('nw-acc-icon').value=icon;setNwAccountType(type);document.querySelectorAll('.nw-preset-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');(type==='credit_card'?document.getElementById('nw-cc-limit'):document.getElementById('nw-acc-balance')).focus();}
 function _makeDragScroll(el){if(!el||el._dragBound)return;el._dragBound=true;let down=false,startX,sl;el.addEventListener('mousedown',e=>{down=true;startX=e.pageX-el.offsetLeft;sl=el.scrollLeft;el.style.cursor='grabbing';el.style.userSelect='none'});el.addEventListener('mouseleave',()=>{down=false;el.style.cursor='';el.style.userSelect=''});el.addEventListener('mouseup',()=>{down=false;el.style.cursor='';el.style.userSelect=''});el.addEventListener('mousemove',e=>{if(!down)return;e.preventDefault();el.scrollLeft=sl-(e.pageX-el.offsetLeft-startX)*1.2});}
 function openNetWorthAdd(){editingNetWorthKey=null;document.getElementById('nw-modal-title').textContent='Add Account';const kicker=document.getElementById('nw-modal-kicker');if(kicker)kicker.textContent='Create Net Worth Account';document.getElementById('nw-acc-icon').value='🏦';document.getElementById('nw-acc-name').value='';document.getElementById('nw-acc-balance').value='';document.getElementById('nw-cc-limit').value='';document.getElementById('nw-delete-btn').style.display='none';document.getElementById('nw-transfer-btn').style.display='none';setNwAccountType('asset');populateNwDebtSelect();const pw=document.getElementById('nw-bank-presets');if(pw){const usedNames=new Set(nwAccounts.map(a=>(a.name||'').trim().toLowerCase()));const available=NW_BANK_PRESETS.filter(p=>!usedNames.has(p.name.toLowerCase()));pw.style.display=available.length?'':'none';pw.innerHTML=available.map(p=>{const brand=getBankBrandVisual(p.name,p.icon);return`<button type="button" class="nw-preset-chip" style="--chip-bg:${brand.bg}" onclick="applyNwPreset(this,'${p.name}','${p.icon}','${p.type}')"><span class="nw-preset-logo">${nwBrandLogoHtml(brand,p.icon)}</span><span class="nw-preset-label">${p.name}</span></button>`;}).join('');_makeDragScroll(pw);}renderNwModalPreview();openModal('modal-nw-account')}
-function openNetWorthEdit(key){const acc=nwAccounts.find(a=>a.key===key);if(!acc)return;editingNetWorthKey=key;const pw=document.getElementById('nw-bank-presets');if(pw)pw.style.display='none';document.getElementById('nw-modal-title').textContent='Edit Account';const kicker=document.getElementById('nw-modal-kicker');if(kicker)kicker.textContent='Account Settings';document.getElementById('nw-acc-icon').value=acc.icon||'🏦';document.getElementById('nw-acc-name').value=acc.name||'';document.getElementById('nw-acc-balance').value=nwBalances[key]||0;document.getElementById('nw-cc-limit').value=acc.creditLimit||'';document.getElementById('nw-delete-btn').style.display='inline-flex';setNwAccountType(acc.accountType||'asset');populateNwDebtSelect(acc.linkedDebtId||'');if(acc.accountType!=='credit_card')document.getElementById('nw-transfer-btn').style.display='inline-flex';renderNwModalPreview();openModal('modal-nw-account')}
+function openNetWorthEdit(key){const acc=nwAccounts.find(a=>a.key===key);if(!acc)return;editingNetWorthKey=key;const pw=document.getElementById('nw-bank-presets');if(pw)pw.style.display='none';document.getElementById('nw-modal-title').textContent='Edit Account';const kicker=document.getElementById('nw-modal-kicker');if(kicker)kicker.textContent='Account Settings';document.getElementById('nw-acc-icon').value=acc.icon||'🏦';document.getElementById('nw-acc-name').value=acc.name||'';document.getElementById('nw-acc-balance').value=moneyInputValue(nwBalances[key]||0);document.getElementById('nw-cc-limit').value=acc.creditLimit?moneyInputValue(acc.creditLimit):'';document.getElementById('nw-delete-btn').style.display='inline-flex';setNwAccountType(acc.accountType||'asset');populateNwDebtSelect(acc.linkedDebtId||'');if(acc.accountType!=='credit_card')document.getElementById('nw-transfer-btn').style.display='inline-flex';renderNwModalPreview();openModal('modal-nw-account')}
 function saveNetWorthAccount(){
   const icon=document.getElementById('nw-acc-icon').value||'🏦';
   const name=document.getElementById('nw-acc-name').value.trim();
   const isCreditCard=document.getElementById('nw-type-credit').classList.contains('active');
   const accountType=isCreditCard?'credit_card':'asset';
   const linkedDebtId=isCreditCard?(document.getElementById('nw-linked-debt').value||null):null;
-  const creditLimit=isCreditCard?(parseFloat(document.getElementById('nw-cc-limit').value)||0):0;
+  const creditLimit=isCreditCard?roundMoney(parseFloat(document.getElementById('nw-cc-limit').value)||0):0;
   const linkedDebt=linkedDebtId?debts.find(d=>String(d.id)===String(linkedDebtId)):null;
-  const balance=isCreditCard&&linkedDebt?Number(linkedDebt.total||0):(parseFloat(document.getElementById('nw-acc-balance').value)||0);
+  const balance=roundMoney(isCreditCard&&linkedDebt?Number(linkedDebt.total||0):(parseFloat(document.getElementById('nw-acc-balance').value)||0));
   if(!name){showAlert('Enter an account name.');return;}
   if(nwAccounts.some(a=>a.key!==editingNetWorthKey&&String(a.name||'').trim().toLowerCase()===name.toLowerCase())){showAlert('That account name already exists.');return;}
   if(editingNetWorthKey){const acc=nwAccounts.find(a=>a.key===editingNetWorthKey);if(!acc)return;acc.icon=icon;acc.name=name;acc.accountType=accountType;acc.linkedDebtId=linkedDebtId||null;acc.creditLimit=creditLimit||null;nwBalances[editingNetWorthKey]=balance;}
@@ -2236,13 +2540,13 @@ function saveNetWorthAccount(){
 function deleteNetWorthAccount(){if(!editingNetWorthKey)return;const account=nwAccounts.find(a=>a.key===editingNetWorthKey);if(!account)return;if(nwAccounts.length<=1){showAlert('Keep at least one account in the app.');return;}const impact=getAccountDeleteImpact(editingNetWorthKey);if(impact.total){showAlert(`Can't delete ${account.name} yet. It is still used by ${impact.message}. Move or update those records first.`);return;}showConfirm(`Delete ${account.name}?`,()=>{clearDeletedAccountSoftReferences(editingNetWorthKey);nwAccounts=nwAccounts.filter(a=>a.key!==editingNetWorthKey);delete nwBalances[editingNetWorthKey];closeModal('modal-nw-account');saveData();render();showActionToast('Account deleted',account.name,'🗑️');},'Delete',true);}
 function buildAccountSelect(selId,includeBlank=false,includeCreditCards=false){const sel=document.getElementById(selId);if(!sel)return;const prev=sel.value;sel.innerHTML='';if(includeBlank){const blank=document.createElement('option');blank.value='';blank.textContent='Select account';sel.appendChild(blank)}nwAccounts.filter(a=>a.accountType!=='credit_card'||includeCreditCards).forEach(a=>{const o=document.createElement('option');o.value=a.key;o.textContent=`${a.icon} ${a.name}`;sel.appendChild(o)});if(prev&&[...sel.options].some(o=>o.value===prev))sel.value=prev;else if(!prev&&sel.options.length)sel.selectedIndex=includeBlank?0:0}
 function getDefaultAccountKey(){return nwAccounts.length?nwAccounts[0].key:''}
-function adjustAccountBalance(key,delta){if(!key)return;if(nwBalances[key]===undefined)nwBalances[key]=0;nwBalances[key]=Number(nwBalances[key]||0)+Number(delta||0)}
+function adjustAccountBalance(key,delta){if(!key)return;if(nwBalances[key]===undefined)nwBalances[key]=0;nwBalances[key]=roundMoney(Number(nwBalances[key]||0)+Number(delta||0))}
 function syncLegacyTransactionAccounts(){entries.forEach(e=>{if(e.account===undefined)e.account=''});incomes.forEach(i=>{if(i.account===undefined)i.account=''});debtPayments.forEach(p=>{if(p.account===undefined)p.account='';if(p.markedMonthly===undefined)p.markedMonthly=true;if(p.fee===undefined)p.fee=0})}
 function getAccountInfo(key){return nwAccounts.find(a=>a.key===key)||{name:'No account',icon:'🏷️',key:''}}
 function isCCAccount(key){const a=nwAccounts.find(x=>x.key===key);return a?.accountType==='credit_card';}
 function getBankBrandVisual(name,fallbackLogo=''){const n=(name||'').toLowerCase();if(n.includes('gcash')||n.includes('gcredit'))return{bg:'#0070ba',logo:'G',domain:'gcash.com'};if(n.includes('bpi'))return{bg:'#c8102e',logo:'BPI',domain:'bpi.com.ph'};if(n.includes('bdo'))return{bg:'#0a2e6e',logo:'BDO',domain:'bdo.com.ph'};if(n.includes('maya')||n.includes('paymaya'))return{bg:'#01a14b',logo:'M',domain:'maya.ph'};if(n.includes('metrobank')||n.includes('metro bank'))return{bg:'#c9a227',logo:'MB',domain:'metrobank.com.ph'};if(n.includes('rcbc'))return{bg:'#e8761a',logo:'RCBC',domain:'rcbc.com'};if(n.includes('wise'))return{bg:'#163300',logo:'W',domain:'wise.com'};if(n.includes('security bank'))return{bg:'#a00c20',logo:'SB',domain:'securitybank.com.ph'};if(n.includes('unionbank')||n.includes('union bank'))return{bg:'#cf202e',logo:'UB',domain:'unionbankph.com'};if(n.includes('landbank')||n.includes('land bank'))return{bg:'#165a16',logo:'LB',domain:'landbank.com'};if(n.includes('pnb'))return{bg:'#003087',logo:'PNB',domain:'pnb.com.ph'};if(n.includes('chinabank')||n.includes('china bank'))return{bg:'#8b0000',logo:'CB',domain:'chinabank.ph'};if(n.includes('eastwest'))return{bg:'#1a237e',logo:'EW',domain:'eastwestbanker.com'};if(n.includes('bitcoin')||n.includes('btc'))return{bg:'#f7931a',logo:'₿',domain:'bitcoin.org'};if(n.includes('xm'))return{bg:'#c8341c',logo:'XM',domain:'xm.com'};if(n.includes('cash'))return{bg:'#16a34a',logo:'₱'};if(n.includes('usd')||n.includes('dollar'))return{bg:'#1d6fa4',logo:'$'};if(n.includes('savings'))return{bg:'#6d28d9',logo:'S'};const fallback=(fallbackLogo||'').trim();return{bg:'#4f46e5',logo:fallback||((name||'?').trim()[0]||'?').toUpperCase()};}
 function nwBrandLogoHtml(brand,fallbackLogo=''){const fallback=esc((fallbackLogo||brand.logo||'?')+'');if(brand?.domain){const src=`https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(brand.domain)}`;return`<img src="${src}" class="nw-logo-img" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="nw-logo-letter" style="display:none">${fallback}</span>`;}return`<span class="nw-logo-letter">${fallback}</span>`;}
-function renderNwModalPreview(){const mount=document.getElementById('nw-modal-preview');if(!mount)return;const icon=document.getElementById('nw-acc-icon')?.value||'🏦';const isCreditCard=document.getElementById('nw-type-credit')?.classList.contains('active');const rawName=(document.getElementById('nw-acc-name')?.value||'').trim();const linkedDebtId=isCreditCard?(document.getElementById('nw-linked-debt')?.value||''):'';const creditLimit=isCreditCard?(parseFloat(document.getElementById('nw-cc-limit')?.value)||0):0;const linkedDebt=linkedDebtId?debts.find(d=>String(d.id)===String(linkedDebtId)):null;const balance=isCreditCard&&linkedDebt?Number(linkedDebt.total||0):(parseFloat(document.getElementById('nw-acc-balance')?.value)||0);const brand=getBankBrandVisual(rawName,icon);
+function renderNwModalPreview(){const mount=document.getElementById('nw-modal-preview');if(!mount)return;const icon=document.getElementById('nw-acc-icon')?.value||'🏦';const isCreditCard=document.getElementById('nw-type-credit')?.classList.contains('active');const rawName=(document.getElementById('nw-acc-name')?.value||'').trim();const linkedDebtId=isCreditCard?(document.getElementById('nw-linked-debt')?.value||''):'';const creditLimit=roundMoney(isCreditCard?(parseFloat(document.getElementById('nw-cc-limit')?.value)||0):0);const linkedDebt=linkedDebtId?debts.find(d=>String(d.id)===String(linkedDebtId)):null;const balance=roundMoney(isCreditCard&&linkedDebt?Number(linkedDebt.total||0):(parseFloat(document.getElementById('nw-acc-balance')?.value)||0));const brand=getBankBrandVisual(rawName,icon);
 // Material variant
 let materialClass='';let materialLabel='Classic';
 if(isCreditCard){if(creditLimit>=200000){materialClass='nw-card-platinum';materialLabel='Platinum';}else if(creditLimit>=50000){materialClass='nw-card-gold';materialLabel='Gold';}}
@@ -2269,14 +2573,14 @@ const dotsEl='<div class="nw-card-dots">•••• •••• ••••</
 const contactlessEl=isCreditCard?`<div class="nw-card-contactless"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="17" r="1.8" fill="rgba(255,255,255,.9)"/><path d="M7.5 13A6.5 6.5 0 0 1 12 11a6.5 6.5 0 0 1 4.5 2" stroke="rgba(255,255,255,.75)" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M4.5 9.5A10.5 10.5 0 0 1 12 7a10.5 10.5 0 0 1 7.5 2.5" stroke="rgba(255,255,255,.45)" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>`:'';
 const topRight=networkBadge?`<div class="nw-modal-preview-top-right">${networkBadge}<span class="nw-modal-preview-pill">${pillLabel}</span></div>`:`<span class="nw-modal-preview-pill">${pillLabel}</span>`;
 mount.innerHTML=`<div class="nw-modal-preview-shell"><div class="nw-modal-preview-label">Preview</div><div class="nw-modal-preview-card ${materialClass}" style="--preview-bg:${brand.bg}"><div class="nw-card-deco nw-card-deco-1"></div><div class="nw-card-deco nw-card-deco-2"></div>${contactlessEl}<div class="nw-modal-preview-top"><div class="nw-modal-preview-logo">${nwBrandLogoHtml(brand,icon)}</div>${topRight}</div>${chipEl}${balanceLabelEl}<div class="nw-modal-preview-balance">${balHtml}</div><div class="nw-modal-preview-name">${esc(rawName||'New account')}</div>${dotsEl}${metaLine?`<div class="nw-modal-preview-meta-line">${esc(metaLine)}</div>`:''}${changeHtml}${utilBarEl}${chips?`<div class="nw-modal-preview-meta">${chips}</div>`:''}</div></div>`;}
-function getSpendValidationState(account,amount,refundedAmount=0){const normalizedAmount=Math.max(Number(amount||0),0);const acc=nwAccounts.find(a=>a.key===account);if(acc?.accountType==='credit_card'){const current=Number(nwBalances[account]||0);const creditLimit=Number(acc.creditLimit||0);const available=creditLimit>0?Math.max(creditLimit-current,0):Infinity;const hasEnough=creditLimit<=0||normalizedAmount<=available;return{current,available,after:current+normalizedAmount,amount:normalizedAmount,hasEnough,isCreditCard:true,creditLimit};}const current=Number(nwBalances[account]||0);const available=current+Math.max(Number(refundedAmount||0),0);const after=Math.round((available-normalizedAmount)*100)/100;return{current,available,after,amount:normalizedAmount,hasEnough:Math.round(normalizedAmount*100)<=Math.round(available*100)}}
+function getSpendValidationState(account,amount,refundedAmount=0){const normalizedAmount=Math.max(roundMoney(amount),0);const acc=nwAccounts.find(a=>a.key===account);if(acc?.accountType==='credit_card'){const current=roundMoney(nwBalances[account]||0);const creditLimit=roundMoney(acc.creditLimit||0);const available=creditLimit>0?roundMoney(Math.max(creditLimit-current,0)):Infinity;const hasEnough=creditLimit<=0||normalizedAmount<=available;return{current,available,after:roundMoney(current+normalizedAmount),amount:normalizedAmount,hasEnough,isCreditCard:true,creditLimit};}const current=roundMoney(nwBalances[account]||0);const available=roundMoney(current+Math.max(Number(refundedAmount||0),0));const after=roundMoney(available-normalizedAmount);return{current,available,after,amount:normalizedAmount,hasEnough:Math.round(normalizedAmount*100)<=Math.round(available*100)}}
 function renderSpendBalancePreview({wrapId,buttonId,title,account,amount,submitLabel,afterLabel,refundedAmount=0,extraLines=[],okMessage='Enough balance for this expense.',warningMessage='Not enough balance in this account.'}){const wrap=document.getElementById(wrapId);const button=document.getElementById(buttonId);const state=getSpendValidationState(account,amount,refundedAmount);if(state.isCreditCard){const ccInfo=getAccountInfo(account);if(wrap){if(state.amount===0){wrap.style.display='none';}else{const limitLine=state.creditLimit>0?`<div>Available credit: <strong>${fmt(Math.max(state.creditLimit-state.current,0))}</strong> · Limit: ${fmt(state.creditLimit)}</div>`:'';wrap.style.display='';wrap.innerHTML=`<div class="add-subtitle" style="margin-bottom:4px">${title}</div><div><strong>${esc(ccInfo.name)}</strong> — credit card</div>${limitLine}<div>After this charge: <strong>${fmt(state.after)}</strong> outstanding</div><div class="add-balance-ok">💳 Charged to credit card</div>`;}}if(button){button.disabled=state.amount===0||!account||!state.hasEnough;button.textContent=!state.hasEnough?'Over Credit Limit':submitLabel;}return state;}const lines=[`<div><strong>${esc(getAccountInfo(account).name)}</strong> now: ${fmt(state.current)}</div>`];if(refundedAmount>0)lines.push(`<div>Available after refund: <strong>${fmt(state.available)}</strong></div>`);extraLines.filter(Boolean).forEach(line=>lines.push(line));lines.push(`<div>${afterLabel}: <strong>${fmt(state.after)}</strong></div>`);if(state.amount>0)lines.push(state.hasEnough?`<div class="add-balance-ok">${okMessage}</div>`:`<div class="add-balance-warning">${warningMessage}</div>`);if(wrap){if(state.amount===0){wrap.style.display='none';}else{wrap.style.display='';wrap.innerHTML=`<div class="add-subtitle" style="margin-bottom:4px">${title}</div>${lines.join('')}`;}}if(button){const canSubmit=state.amount>0&&!!account&&state.hasEnough;button.disabled=!canSubmit;button.textContent=!state.hasEnough&&state.amount>0?'Not Enough Balance':submitLabel}return state}
 function setTransferFee(value){document.getElementById('t-fee').value=value;updateTransferSummary()}
 function setDebtPaymentFee(value){document.getElementById('dp-fee').value=value;updateDebtPaymentPreview()}
 function isExternalTransfer(t){return t&&t.mode==='external'}
 function getTransferDestinationName(t){return isExternalTransfer(t)?(t.externalTo||'Other bank account'):getAccountInfo(t.to).name}
 function updateTransferModeUI(){const mode=document.getElementById('t-mode')?.value||'internal';const toWrap=document.getElementById('t-to-wrap');const externalWrap=document.getElementById('t-external-wrap');if(toWrap)toWrap.style.display=mode==='external'?'none':'';if(externalWrap)externalWrap.style.display=mode==='external'?'':'none'}
-function updateTransferSummary(){const mode=document.getElementById('t-mode')?.value||'internal';const from=document.getElementById('t-from')?.value||'';const to=document.getElementById('t-to')?.value||'';const externalTo=(document.getElementById('t-external-to')?.value||'').trim();const amount=parseFloat(document.getElementById('t-amount')?.value)||0;const fee=parseFloat(document.getElementById('t-fee')?.value)||0;const summary=document.getElementById('transfer-summary');if(!summary)return;const fromName=from?getAccountInfo(from).name:'Source account';const toName=mode==='external'?(externalTo||'Other bank account'):(to?getAccountInfo(to).name:'Destination account');const total=Math.max(0,amount)+Math.max(0,fee);const fromAfter=from?Number(nwBalances[from]||0)-total:0;const toAfter=mode==='external'?null:(to?Number(nwBalances[to]||0)+Math.max(0,amount):0);summary.innerHTML=`<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Transfer summary</div><div><strong>Transfer amount:</strong> ${fmt(amount)}</div><div><strong>Fee:</strong> ${fmt(fee)}</div><div><strong>Total deducted from ${esc(fromName)}:</strong> ${fmt(total)}</div><div><strong>Sent to ${esc(toName)}:</strong> ${fmt(amount)}</div><div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><strong>${esc(fromName)} after transfer:</strong> <span style="color:${fromAfter<0?'var(--red)':'inherit'};font-weight:${fromAfter<0?800:400}">${fmt(fromAfter)}${fromAfter<0?' ⚠️':''}</span>${mode==='external'?'<br><span>This will not increase any tracked asset account.</span>':`<br><strong>${esc(toName)} after transfer:</strong> ${fmt(toAfter)}`}</div>${fee>0?'<div style="margin-top:6px;color:var(--text3)">The fee will be logged as a separate Transfer Fees expense.</div>':''}`;}
+function updateTransferSummary(){const mode=document.getElementById('t-mode')?.value||'internal';const from=document.getElementById('t-from')?.value||'';const to=document.getElementById('t-to')?.value||'';const externalTo=(document.getElementById('t-external-to')?.value||'').trim();const amount=roundMoney(parseFloat(document.getElementById('t-amount')?.value)||0);const fee=roundMoney(parseFloat(document.getElementById('t-fee')?.value)||0);const summary=document.getElementById('transfer-summary');if(!summary)return;const fromName=from?getAccountInfo(from).name:'Source account';const toName=mode==='external'?(externalTo||'Other bank account'):(to?getAccountInfo(to).name:'Destination account');const total=roundMoney(Math.max(0,amount)+Math.max(0,fee));const fromAfter=from?roundMoney(Number(nwBalances[from]||0)-total):0;const toAfter=mode==='external'?null:(to?roundMoney(Number(nwBalances[to]||0)+Math.max(0,amount)):0);summary.innerHTML=`<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Transfer summary</div><div><strong>Transfer amount:</strong> ${fmt(amount)}</div><div><strong>Fee:</strong> ${fmt(fee)}</div><div><strong>Total deducted from ${esc(fromName)}:</strong> ${fmt(total)}</div><div><strong>Sent to ${esc(toName)}:</strong> ${fmt(amount)}</div><div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><strong>${esc(fromName)} after transfer:</strong> <span style="color:${fromAfter<0?'var(--red)':'inherit'};font-weight:${fromAfter<0?800:400}">${fmt(fromAfter)}${fromAfter<0?' ⚠️':''}</span>${mode==='external'?'<br><span>This will not increase any tracked asset account.</span>':`<br><strong>${esc(toName)} after transfer:</strong> ${fmt(toAfter)}`}</div>${fee>0?'<div style="margin-top:6px;color:var(--text3)">The fee will be logged as a separate Transfer Fees expense.</div>':''}`;}
 function openTransferModal(prefillFrom=''){if(!nwAccounts||!nwAccounts.length){showAlert('Add at least one account to transfer money.');return;}const fromEl=document.getElementById('t-from');const toEl=document.getElementById('t-to');const opts=nwAccounts.map(a=>`<option value="${a.key}">${a.icon} ${esc(a.name)}</option>`).join('');fromEl.innerHTML=opts;toEl.innerHTML=opts;const first=prefillFrom&&nwAccounts.find(a=>a.key===prefillFrom)?prefillFrom:nwAccounts[0].key;let second=(nwAccounts.find(a=>a.key!==first)||nwAccounts[0]).key;if(second===first&&nwAccounts[1])second=nwAccounts[1].key;fromEl.value=first;toEl.value=second;document.getElementById('t-mode').value=nwAccounts.length<2?'external':'internal';document.getElementById('t-date').value=todayStr;document.getElementById('t-amount').value='';document.getElementById('t-fee').value='0';document.getElementById('t-note').value='';document.getElementById('t-external-to').value='';updateTransferModeUI();updateTransferSummary();openModal('modal-transfer')}
 function openTransferFromEditingAccount(){if(!editingNetWorthKey)return;closeModal('modal-nw-account');openTransferModal(editingNetWorthKey)}
 /* ===== XM / TRADE CYCLE ===== */
@@ -2350,7 +2654,7 @@ function settleTradeCycle(){
     pnl>0?'📈':pnl<0?'📉':'🔁'
   );
 }
-function addTransfer(skipFutureDateCheck=false){const mode=document.getElementById('t-mode')?.value||'internal';const from=document.getElementById('t-from').value;const to=document.getElementById('t-to').value;const externalTo=(document.getElementById('t-external-to')?.value||'').trim();const _rawTAmt=(document.getElementById('t-amount').value||'');if(/[eE]/.test(_rawTAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=Math.round((parseFloat(_rawTAmt)||0)*100)/100;const fee=Math.round((parseFloat(document.getElementById('t-fee').value)||0)*100)/100;const date=document.getElementById('t-date').value;const note=document.getElementById('t-note').value;if(!from){showAlert('Choose a source account.');return;}if(mode==='internal'&&(!to||from===to)){showAlert('Choose two different accounts.');return;}if(mode==='external'&&!externalTo){showAlert('Enter the recipient bank or account.');return;}if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Add transfer anyway?',()=>addTransfer(true));return;}if(fee<0){showAlert('Fee cannot be negative.');return;}if(fee>amount){showAlert('Transfer fee ('+fmt(fee)+') cannot exceed the transfer amount ('+fmt(amount)+').');return;}const totalDeduction=amount+fee;if((Number(nwBalances[from]||0))<totalDeduction){showAlert('Not enough balance in the selected source account.');return;}adjustAccountBalance(from,-totalDeduction);if(mode==='internal')adjustAccountBalance(to,amount);const transferRecord=stampRecord({id:nextTransferId++,mode,from,to:mode==='internal'?to:'',externalTo:mode==='external'?externalTo:'',amount,fee,date,note});transfers.unshift(transferRecord);let feeEntryId=null,outflowEntryId=null;if(mode==='external'){outflowEntryId=nextId;entries.unshift(stampRecord({id:nextId++,date,category:'External Transfer',amount,account:from,note:`Sent to ${externalTo}${note?` - ${note}`:''}`,isExternalTransfer:true,transferId:transferRecord.id}));transferRecord.outflowEntryId=outflowEntryId}if(fee>0){feeEntryId=nextId;entries.unshift(stampRecord({id:nextId++,date,category:'Transfer Fees',amount:fee,account:from,note:`Transfer fee: ${getAccountInfo(from).name} -> ${getTransferDestinationName(transferRecord)}${note?` - ${note}`:''}`}));transferRecord.feeEntryId=feeEntryId}const hadPrevUndo=!!lastTransferUndo;lastTransferUndo={transfer:transferRecord,totalDeduction,feeEntryId,outflowEntryId};document.getElementById('t-amount').value='';document.getElementById('t-fee').value='0';document.getElementById('t-note').value='';document.getElementById('t-external-to').value='';closeModal('modal-transfer');saveData();render();showActionToast(`${fmt(amount)} transferred`,hadPrevUndo?`${getAccountInfo(from).name} → ${getTransferDestinationName(transferRecord)} · Previous undo replaced`:`${getAccountInfo(from).name} -> ${getTransferDestinationName(transferRecord)}${fee>0?' - Fee '+fmt(fee):''}`,'Transfer',{showUndo:true,duration:5200})}
+function addTransfer(skipFutureDateCheck=false){const mode=document.getElementById('t-mode')?.value||'internal';const from=document.getElementById('t-from').value;const to=document.getElementById('t-to').value;const externalTo=(document.getElementById('t-external-to')?.value||'').trim();const _rawTAmt=(document.getElementById('t-amount').value||'');if(/[eE]/.test(_rawTAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=roundMoney(parseFloat(_rawTAmt)||0);const fee=roundMoney(parseFloat(document.getElementById('t-fee').value)||0);const date=document.getElementById('t-date').value;const note=document.getElementById('t-note').value;if(!from){showAlert('Choose a source account.');return;}if(mode==='internal'&&(!to||from===to)){showAlert('Choose two different accounts.');return;}if(mode==='external'&&!externalTo){showAlert('Enter the recipient bank or account.');return;}if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Add transfer anyway?',()=>addTransfer(true));return;}if(fee<0){showAlert('Fee cannot be negative.');return;}if(fee>amount){showAlert('Transfer fee ('+fmt(fee)+') cannot exceed the transfer amount ('+fmt(amount)+').');return;}const totalDeduction=roundMoney(amount+fee);if((Number(nwBalances[from]||0))<totalDeduction){showAlert('Not enough balance in the selected source account.');return;}adjustAccountBalance(from,-totalDeduction);if(mode==='internal')adjustAccountBalance(to,amount);const transferRecord=stampRecord({id:nextTransferId++,mode,from,to:mode==='internal'?to:'',externalTo:mode==='external'?externalTo:'',amount,fee,date,note});transfers.unshift(transferRecord);let feeEntryId=null,outflowEntryId=null;if(mode==='external'){outflowEntryId=nextId;entries.unshift(stampRecord({id:nextId++,date,category:'External Transfer',amount,account:from,note:`Sent to ${externalTo}${note?` - ${note}`:''}`,isExternalTransfer:true,transferId:transferRecord.id}));transferRecord.outflowEntryId=outflowEntryId}if(fee>0){feeEntryId=nextId;entries.unshift(stampRecord({id:nextId++,date,category:'Transfer Fees',amount:fee,account:from,note:`Transfer fee: ${getAccountInfo(from).name} -> ${getTransferDestinationName(transferRecord)}${note?` - ${note}`:''}`}));transferRecord.feeEntryId=feeEntryId}const hadPrevUndo=!!lastTransferUndo;lastTransferUndo={transfer:transferRecord,totalDeduction,feeEntryId,outflowEntryId};document.getElementById('t-amount').value='';document.getElementById('t-fee').value='0';document.getElementById('t-note').value='';document.getElementById('t-external-to').value='';closeModal('modal-transfer');saveData();render();showActionToast(`${fmt(amount)} transferred`,hadPrevUndo?`${getAccountInfo(from).name} → ${getTransferDestinationName(transferRecord)} · Previous undo replaced`:`${getAccountInfo(from).name} -> ${getTransferDestinationName(transferRecord)}${fee>0?' - Fee '+fmt(fee):''}`,'Transfer',{showUndo:true,duration:5200})}
 function deleteTransferWithConfirm(id){const t=transfers.find(x=>x.id===id);if(!t)return;showConfirm(`Delete transfer: ${getAccountInfo(t.from).name} -> ${getTransferDestinationName(t)} - ${fmt(t.amount)}?\n\nThis will restore the affected account balances.`,()=>{deleteTransfer(id);showActionToast('Transfer deleted',`${getAccountInfo(t.from).name||'?'} -> ${getTransferDestinationName(t)}`,'Deleted');},'Delete',true);}
 function renderTransferHistory(){const wrap=document.getElementById('transfer-history');if(!wrap)return;if(!transfers.length){wrap.innerHTML='<div class="empty"><div class="empty-text">No transfers yet.</div></div>';return;}wrap.innerHTML=`<div class="tx-list">${transfers.slice(0,8).map(t=>`<div class="tx-item"><div class="tx-icon" style="width:32px;height:32px;border-radius:9px;background:var(--surface2);font-size:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">T</div><div class="tx-info"><div class="tx-name" style="font-size:12px;font-weight:600;color:var(--text1)">${esc(getAccountInfo(t.from).name)} -> ${esc(getTransferDestinationName(t))}</div><div class="tx-meta" style="font-size:10px">${esc(t.date||'')} - ${isExternalTransfer(t)?'Other bank':'My account'} - ${t.fee&&Number(t.fee)>0?`Fee ${fmt(t.fee)}`:'No fee'}${t.note?` - ${esc(t.note)}`:''}</div></div><div class="tx-amount" style="font-size:13px;font-weight:600;color:var(--text2)">${fmt(t.amount)}</div><button class="btn-icon tx-delete" onclick="deleteTransferWithConfirm(${t.id})" style="border:none;background:none;color:var(--red);font-size:12px;cursor:pointer;padding:4px 6px;margin-left:2px" title="Delete">x</button></div>`).join('')}</div>`;}
 function findTransferFeeEntryId(transfer){if(transfer.feeEntryId&&entries.some(e=>e.id===transfer.feeEntryId))return transfer.feeEntryId;const feeAmount=Number(transfer.fee||0);if(feeAmount<=0)return null;const match=entries.find(e=>e.category==='Transfer Fees'&&e.account===transfer.from&&Number(e.amount||0)===feeAmount&&e.date===transfer.date&&(e.note||'').startsWith('Transfer fee:'));return match?match.id:null}
@@ -2407,7 +2711,7 @@ function finishOnboarding(){
   nwAccounts=onboardAccounts.filter(a=>a.selected).map(a=>({key:a.key,name:a.name,icon:a.icon}));
   if(!nwAccounts.length)nwAccounts=[{key:'cash',name:'Cash',icon:'💵'}];
   nwBalances={};
-  nwAccounts.forEach(a=>{const found=onboardAccounts.find(x=>x.key===a.key);nwBalances[a.key]=found?Number(found.balance||0):0});
+  nwAccounts.forEach(a=>{const found=onboardAccounts.find(x=>x.key===a.key);nwBalances[a.key]=found?roundMoney(found.balance||0):0});
   recurring=recurring.filter(r=>!ONBOARD_DEFAULT_BILLS.some(b=>b.name===r.name));
   onboardBills.filter(b=>b.selected&&Number(b.amount||0)>0).forEach(b=>{
     recurring.push({id:nextRecurringId++,type:'bill',name:b.name,amount:Number(b.amount||0),day:parseInt(b.day)||1,category:b.category,lastPaid:''});
@@ -2433,11 +2737,11 @@ function finishOnboarding(){
 /* Edit entries/income */
 function toggleEditCustom(){const wrap=document.getElementById('me-custom-cat-wrap');if(!wrap)return;wrap.style.display=document.getElementById('me-cat').value==='__other__'?'block':'none'}
 function openEntryEdit(id){const e=entries.find(x=>x.id===id);if(!e)return;if(e.isExternalTransfer&&e.transferId){showAlert('Edit this from Transfer History instead.');return;}if((e.isDebtPayment||e.isDebtPaymentFee)&&e.debtPaymentId){showAlert('Edit the linked debt payment instead.');return;}if(e.isGoalContribution&&e.goalContributionId){showAlert('Edit the linked goal contribution instead.');return;}editingEntryId=id;buildCatSelect('me-cat');document.getElementById('me-date').value=e.date;document.getElementById('me-amount').value=e.amount;document.getElementById('me-note').value=e.note||'';document.getElementById('me-cat').value=e.category;buildAccountSelect('me-account',true,true);document.getElementById('me-account').value=e.account||'';toggleEditCustom();updateEntryEditPreview();openModal('modal-edit-entry')}
-function saveEntryEdit(){const e=entries.find(x=>x.id===editingEntryId);if(!e)return;let cat=document.getElementById('me-cat').value;const date=document.getElementById('me-date').value;const _rawMEAmt=(document.getElementById('me-amount').value||'');if(/[eE]/.test(_rawMEAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=Math.round((parseFloat(_rawMEAmt)||0)*100)/100;const note=document.getElementById('me-note').value;const account=document.getElementById('me-account').value;if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}if(!account){showAlert('Choose an account.');return;}if(cat==='__other__'){const cn=document.getElementById('me-custom-cat').value.trim();if(!cn){showAlert('Enter category name.');return;}if(!allCats().find(c=>c.name===cn)){customCats.push({name:cn,budget:0,type:'other',group:'wants',icon:'🏷️',colorClass:'cat-default'});budgets[cn]=0}cat=cn;document.getElementById('me-custom-cat').value=''}const refundedAmount=account===e.account?Number(e.amount||0):0;const balanceState=getSpendValidationState(account,amount,refundedAmount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}if(isCCAccount(e.account)){adjustAccountBalance(e.account,-e.amount);const _ccA0=nwAccounts.find(a=>a.key===e.account);if(_ccA0?.linkedDebtId){const _ld0=debts.find(d=>String(d.id)===String(_ccA0.linkedDebtId));if(_ld0)_ld0.total=Math.max(0,Number(_ld0.total||0)-e.amount);}}else{adjustAccountBalance(e.account,e.amount);}e.date=date;e.amount=amount;e.note=note;e.category=cat;e.account=account;if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA1=nwAccounts.find(a=>a.key===account);if(_ccA1?.linkedDebtId){const _ld1=debts.find(d=>String(d.id)===String(_ccA1.linkedDebtId));if(_ld1)_ld1.total=Number(_ld1.total||0)+amount;}}else{adjustAccountBalance(account,-amount);}closeModal('modal-edit-entry');saveData();render()}
+function saveEntryEdit(){const e=entries.find(x=>x.id===editingEntryId);if(!e)return;let cat=document.getElementById('me-cat').value;const date=document.getElementById('me-date').value;const _rawMEAmt=(document.getElementById('me-amount').value||'');if(/[eE]/.test(_rawMEAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=roundMoney(parseFloat(_rawMEAmt)||0);const note=document.getElementById('me-note').value;const account=document.getElementById('me-account').value;if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}if(!account){showAlert('Choose an account.');return;}if(cat==='__other__'){const cn=document.getElementById('me-custom-cat').value.trim();if(!cn){showAlert('Enter category name.');return;}if(!allCats().find(c=>c.name===cn)){customCats.push({name:cn,budget:0,type:'other',group:'wants',icon:'🏷️',colorClass:'cat-default'});budgets[cn]=0}cat=cn;document.getElementById('me-custom-cat').value=''}const refundedAmount=account===e.account?Number(e.amount||0):0;const balanceState=getSpendValidationState(account,amount,refundedAmount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}if(isCCAccount(e.account)){adjustAccountBalance(e.account,-e.amount);const _ccA0=nwAccounts.find(a=>a.key===e.account);if(_ccA0?.linkedDebtId){const _ld0=debts.find(d=>String(d.id)===String(_ccA0.linkedDebtId));if(_ld0)_ld0.total=roundMoney(Math.max(0,Number(_ld0.total||0)-e.amount));}}else{adjustAccountBalance(e.account,e.amount);}e.date=date;e.amount=amount;e.note=note;e.category=cat;e.account=account;if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA1=nwAccounts.find(a=>a.key===account);if(_ccA1?.linkedDebtId){const _ld1=debts.find(d=>String(d.id)===String(_ccA1.linkedDebtId));if(_ld1)_ld1.total=roundMoney(Number(_ld1.total||0)+amount);}}else{adjustAccountBalance(account,-amount);}closeModal('modal-edit-entry');saveData();render()}
 function deleteEditingEntry(){if(editingEntryId===null)return;if(deleteEntry(editingEntryId))closeModal('modal-edit-entry')}
-function duplicateEditingEntry(){const e=entries.find(x=>x.id===editingEntryId);if(!e)return;const account=e.account||'';const amount=Number(e.amount||0);const balanceState=getSpendValidationState(account,amount);if(account&&!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}const duplicate=stampRecord({...e,id:nextId++,date:todayStr,note:e.note?e.note+' (copy)':'Copy'});entries.unshift(duplicate);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccAd=nwAccounts.find(a=>a.key===account);if(_ccAd?.linkedDebtId){const _ldd=debts.find(d=>String(d.id)===String(_ccAd.linkedDebtId));if(_ldd)_ldd.total=Number(_ldd.total||0)+amount;}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(duplicate);closeModal('modal-edit-entry');saveData();render();showActionToast(`${fmt(amount)} duplicated`,duplicate.category,'🧾')}
+function duplicateEditingEntry(){const e=entries.find(x=>x.id===editingEntryId);if(!e)return;const account=e.account||'';const amount=roundMoney(e.amount||0);const balanceState=getSpendValidationState(account,amount);if(account&&!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}const duplicate=stampRecord({...e,id:nextId++,date:todayStr,note:e.note?e.note+' (copy)':'Copy'});entries.unshift(duplicate);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccAd=nwAccounts.find(a=>a.key===account);if(_ccAd?.linkedDebtId){const _ldd=debts.find(d=>String(d.id)===String(_ccAd.linkedDebtId));if(_ldd)_ldd.total=roundMoney(Number(_ldd.total||0)+amount);}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(duplicate);closeModal('modal-edit-entry');saveData();render();showActionToast(`${fmt(amount)} duplicated`,duplicate.category,'🧾')}
 function openIncomeEdit(id){const i=incomes.find(x=>x.id===id);if(!i)return;if(i.isSalaryDeposit){showAlert('Scheduled salary deposits are locked. Delete the deposit first if you need to log it again correctly.');return;}editingIncomeId=id;document.getElementById('mi-date').value=i.date;document.getElementById('mi-amount').value=i.amount;document.getElementById('mi-source').value=i.source;buildAccountSelect('mi-account',true);document.getElementById('mi-account').value=i.account||'';document.getElementById('mi-note').value=i.note||'';openModal('modal-edit-income')}
-function saveIncomeEdit(){const i=incomes.find(x=>x.id===editingIncomeId);if(!i)return;if(i.isSalaryDeposit){showAlert('Scheduled salary deposits cannot be edited here. Delete the deposit first if you need to log it again correctly.');return;}const date=document.getElementById('mi-date').value;const _rawMIAmt=(document.getElementById('mi-amount').value||'');if(/[eE]/.test(_rawMIAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=Math.round((parseFloat(_rawMIAmt)||0)*100)/100;const source=document.getElementById('mi-source').value;const account=document.getElementById('mi-account').value;const note=document.getElementById('mi-note').value;if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}adjustAccountBalance(i.account,-i.amount);i.date=date;i.amount=amount;i.source=source;i.account=account;i.note=note;adjustAccountBalance(account,amount);closeModal('modal-edit-income');saveData();render()}
+function saveIncomeEdit(){const i=incomes.find(x=>x.id===editingIncomeId);if(!i)return;if(i.isSalaryDeposit){showAlert('Scheduled salary deposits cannot be edited here. Delete the deposit first if you need to log it again correctly.');return;}const date=document.getElementById('mi-date').value;const _rawMIAmt=(document.getElementById('mi-amount').value||'');if(/[eE]/.test(_rawMIAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=roundMoney(parseFloat(_rawMIAmt)||0);const source=document.getElementById('mi-source').value;const account=document.getElementById('mi-account').value;const note=document.getElementById('mi-note').value;if(!date||!amount||amount<=0){showAlert('Enter date and amount.');return;}adjustAccountBalance(i.account,-i.amount);i.date=date;i.amount=amount;i.source=source;i.account=account;i.note=note;adjustAccountBalance(account,amount);closeModal('modal-edit-income');saveData();render()}
 function deleteEditingIncome(){if(editingIncomeId===null)return;if(deleteIncome(editingIncomeId))closeModal('modal-edit-income')}
 function duplicateEditingIncome(){const i=incomes.find(x=>x.id===editingIncomeId);if(!i)return;if(i.isSalaryDeposit){showAlert('Scheduled salary deposits cannot be duplicated.');return;}const duplicate=stampRecord({...i,id:nextIncId++,date:todayStr,note:i.note?i.note+' (copy)':'Copy'});incomes.unshift(duplicate);adjustAccountBalance(duplicate.account,Number(duplicate.amount||0));rememberIncomePattern(duplicate);closeModal('modal-edit-income');saveData();render();showActionToast(`${fmt(duplicate.amount)} duplicated`,duplicate.source,'💵')}
 
@@ -2576,7 +2880,7 @@ function updateAddPreviews(){
 }
 function updateEntryEditPreview(){const e=entries.find(x=>x.id===editingEntryId);const wrap=document.getElementById('me-balance-preview');if(!e||!wrap)return;const account=document.getElementById('me-account')?.value||'';const amount=parseFloat(document.getElementById('me-amount')?.value)||0;const refundedAmount=account===e.account?Number(e.amount||0):0;const extraLines=account&&account!==e.account?[`<div>${esc(getAccountInfo(e.account).name)} will get back <strong>${fmt(e.amount||0)}</strong> when you save.</div>`]:[];renderSpendBalancePreview({wrapId:'me-balance-preview',buttonId:'me-save-btn',title:'Edit balance preview',account,amount,submitLabel:'Save',afterLabel:'After saving this edit',refundedAmount,extraLines,okMessage:'Enough balance for this edit.',warningMessage:'Not enough balance in this account.'})}
 function updateGoalContributionPreview(){const wrap=document.getElementById('gc-balance-preview');if(!wrap)return;const account=document.getElementById('gc-account')?.value||'';const amount=parseFloat(document.getElementById('gc-amount')?.value)||0;renderSpendBalancePreview({wrapId:'gc-balance-preview',buttonId:'gc-save-btn',title:'Contribution balance preview',account,amount,submitLabel:'Save',afterLabel:'After this contribution',okMessage:'Enough balance for this contribution.',warningMessage:'Not enough balance in this account.'})}
-function updateDebtPaymentPreview(){const wrap=document.getElementById('dp-balance-preview');const debt=debts.find(d=>d.id===activeDebtPaymentDebtId);if(!wrap||!debt)return;const account=document.getElementById('dp-account')?.value||'';const rawAmount=parseFloat(document.getElementById('dp-amount')?.value)||0;const fee=Math.max(parseFloat(document.getElementById('dp-fee')?.value)||0,0);const amount=Math.min(rawAmount,Math.max(Number(debt.total||0),0));const totalDeduction=amount>0?amount+fee:0;const extraLines=rawAmount>amount&&amount>0?[`<div>Only <strong>${fmt(amount)}</strong> will be applied because that is the remaining debt balance.</div>`]:[];if(amount>0)extraLines.push(`<div>Applied to debt: <strong>${fmt(amount)}</strong></div>`);if(amount>0&&fee>0){extraLines.push(`<div>Bank transfer fee: <strong>${fmt(fee)}</strong></div>`);extraLines.push(`<div>Total deducted today: <strong>${fmt(totalDeduction)}</strong></div>`)}renderSpendBalancePreview({wrapId:'dp-balance-preview',buttonId:'dp-save-btn',title:'Payment balance preview',account,amount:totalDeduction,submitLabel:'Save Payment',afterLabel:fee>0?'After payment and fee':'After this payment',extraLines,okMessage:fee>0?'Enough balance for this payment and fee.':'Enough balance for this payment.',warningMessage:fee>0?'Not enough balance in this account for the payment and fee.':'Not enough balance in this account.'})}
+function updateDebtPaymentPreview(){const wrap=document.getElementById('dp-balance-preview');const debt=debts.find(d=>d.id===activeDebtPaymentDebtId);if(!wrap||!debt)return;const account=document.getElementById('dp-account')?.value||'';const rawAmount=roundMoney(parseFloat(document.getElementById('dp-amount')?.value)||0);const fee=Math.max(roundMoney(parseFloat(document.getElementById('dp-fee')?.value)||0),0);const amount=roundMoney(Math.min(rawAmount,Math.max(Number(debt.total||0),0)));const totalDeduction=amount>0?roundMoney(amount+fee):0;const extraLines=rawAmount>amount&&amount>0?[`<div>Only <strong>${fmt(amount)}</strong> will be applied because that is the remaining debt balance.</div>`]:[];if(amount>0)extraLines.push(`<div>Applied to debt: <strong>${fmt(amount)}</strong></div>`);if(amount>0&&fee>0){extraLines.push(`<div>Bank transfer fee: <strong>${fmt(fee)}</strong></div>`);extraLines.push(`<div>Total deducted today: <strong>${fmt(totalDeduction)}</strong></div>`)}renderSpendBalancePreview({wrapId:'dp-balance-preview',buttonId:'dp-save-btn',title:'Payment balance preview',account,amount:totalDeduction,submitLabel:'Save Payment',afterLabel:fee>0?'After payment and fee':'After this payment',extraLines,okMessage:fee>0?'Enough balance for this payment and fee.':'Enough balance for this payment.',warningMessage:fee>0?'Not enough balance in this account for the payment and fee.':'Not enough balance in this account.'})}
 function renderExpenseTemplates(){const wrap=document.getElementById('expense-templates');if(!wrap)return;const templates=addFlowState.favoriteExpenseTemplates||[];if(!templates.length){wrap.innerHTML='<div class="add-empty-note">No saved templates yet</div>';return;}wrap.innerHTML=templates.map((t,idx)=>{const accountName=t.account?getAccountInfo(t.account).name:'';return`<button type="button" class="template-card" onclick="applyExpenseTemplate(${idx})"><div class="template-kicker">${esc(t.category||'Template')}</div><div class="template-title">${esc(t.label||'Template')}</div><div class="template-meta-row"><span class="template-amount">${t.amount?fmtShort(t.amount):'Custom amount'}</span>${accountName?`<span class="template-account">${esc(accountName)}</span>`:''}</div></button>`}).join('');}
 function applyExpenseTemplate(idx){const t=(addFlowState.favoriteExpenseTemplates||[])[idx];if(!t)return;document.getElementById('f-cat').value=t.category;toggleCustom();if(t.account)document.getElementById('f-account').value=t.account;if(t.note!==undefined)document.getElementById('f-note').value=t.note;if(t.amount)document.getElementById('f-amount').value=t.amount;updateAddPreviews();renderExpenseSuggestions();}
 function applyExpenseAmount(value){document.getElementById('f-amount').value=value;updateAddPreviews();}
@@ -2588,8 +2892,8 @@ function resetExpenseForm(keepCategory=false){document.getElementById('f-amount'
 function resetIncomeForm(keepSource=false){document.getElementById('inc-amount').value='';if(!keepSource)document.getElementById('inc-source').selectedIndex=0;document.getElementById('inc-date').value=todayStr;document.getElementById('inc-note').value='';updateAddPreviews();renderIncomeSuggestions();}
 function checkLikelyDuplicateExpense(entry){return entries.some(e=>e.date===entry.date&&e.category===entry.category&&Number(e.amount||0)===Number(entry.amount||0)&&(e.note||'')===(entry.note||''));}
 function ensureCustomExpenseCategory(rawName,group='wants'){const name=(rawName||'').trim();if(!name)return'';if(!allCats().find(c=>c.name===name)){customCats.push({name,budget:0,type:'other',group,groupExplicit:true,icon:'🏷️',colorClass:'cat-default'});budgets[name]=0}return name}
-function addEntryCore(stayOnAdd=false,afterSave=null,{skipFutureDateCheck=false}={}){const date=document.getElementById('f-date').value||todayStr;const _rawFAmt=(document.getElementById('f-amount').value||'');if(/[eE]/.test(_rawFAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=Math.round((parseFloat(_rawFAmt)||0)*100)/100;let category=document.getElementById('f-cat').value;const account=document.getElementById('f-account').value;const note=document.getElementById('f-note').value.trim();const rawTags=(document.getElementById('f-tags')?.value||'');const tags=rawTags.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean).slice(0,3);if(category==='__other__'){category=ensureCustomExpenseCategory(document.getElementById('f-custom-cat').value,_selectedCatGroup);if(!category){showAlert('Enter custom category name.');return;}document.getElementById('f-custom-cat').value='';document.getElementById('custom-cat-group-wrap').style.display='none';}if(!date){showAlert('Date is required.');return;}if(!amount||amount<=0){showAlert('Please enter an amount greater than ₱0.');return;}if(!category){showAlert('Please select a category.');return;}if(!account){showAlert('Please select an account.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Log this expense anyway?',()=>addEntryCore(stayOnAdd,afterSave,{skipFutureDateCheck:true}));return;}const balanceState=getSpendValidationState(account,amount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}const entry=stampRecord({id:nextId++,date,amount,category,account,note,...(tags.length?{tags}:{})});if(checkLikelyDuplicateExpense(entry)){showConfirm('This looks similar to a recent expense. Add anyway?',()=>{entries.unshift(entry);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=Number(_ld.total||0)+amount;}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(entry);rememberTags(tags);saveData();resetExpenseForm(true);render();showActionToast(`${fmt(amount)} expense added`,`${category} · ${getAccountInfo(account).name}`,'🧾');if(typeof afterSave==='function'){afterSave(entry);return}});return;}entries.unshift(entry);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=Number(_ld.total||0)+amount;}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(entry);rememberTags(tags);saveData();resetExpenseForm(true);render();showActionToast(`${fmt(amount)} expense added`,`${category} · ${getAccountInfo(account).name}`,'🧾');if(typeof afterSave==='function'){afterSave(entry);return}}
-function addIncomeCore(stayOnAdd=false,afterSave=null,{skipFutureDateCheck=false}={}){const date=document.getElementById('inc-date').value||todayStr;const _rawIAmt=(document.getElementById('inc-amount').value||'');if(/[eE]/.test(_rawIAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=Math.round((parseFloat(_rawIAmt)||0)*100)/100;const source=document.getElementById('inc-source').value;const account=document.getElementById('inc-account').value;const note=document.getElementById('inc-note').value.trim();if(!date){showAlert('Date is required.');return;}if(!amount||amount<=0){showAlert('Please enter an amount greater than ₱0.');return;}if(!source){showAlert('Please enter an income source.');return;}if(!account){showAlert('Please select an account.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Log this income anyway?',()=>addIncomeCore(stayOnAdd,afterSave,{skipFutureDateCheck:true}));return;}const income=stampRecord({id:nextIncId++,date,source,amount,note,account});incomes.unshift(income);adjustAccountBalance(account,amount);rememberIncomePattern(income);saveData();resetIncomeForm(true);render();showActionToast(`${fmt(amount)} income added`,`${source} · ${getAccountInfo(account).name}`,'💰');if(typeof afterSave==='function'){afterSave(income);return}if(stayOnAdd){showTab('add');return}showTab('dashboard');}
+function addEntryCore(stayOnAdd=false,afterSave=null,{skipFutureDateCheck=false}={}){const date=document.getElementById('f-date').value||todayStr;const _rawFAmt=(document.getElementById('f-amount').value||'');if(/[eE]/.test(_rawFAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=roundMoney(parseFloat(_rawFAmt)||0);let category=document.getElementById('f-cat').value;const account=document.getElementById('f-account').value;const note=document.getElementById('f-note').value.trim();const rawTags=(document.getElementById('f-tags')?.value||'');const tags=rawTags.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean).slice(0,3);if(category==='__other__'){category=ensureCustomExpenseCategory(document.getElementById('f-custom-cat').value,_selectedCatGroup);if(!category){showAlert('Enter custom category name.');return;}document.getElementById('f-custom-cat').value='';document.getElementById('custom-cat-group-wrap').style.display='none';}if(!date){showAlert('Date is required.');return;}if(!amount||amount<=0){showAlert('Please enter an amount greater than ₱0.');return;}if(!category){showAlert('Please select a category.');return;}if(!account){showAlert('Please select an account.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Log this expense anyway?',()=>addEntryCore(stayOnAdd,afterSave,{skipFutureDateCheck:true}));return;}const balanceState=getSpendValidationState(account,amount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}const entry=stampRecord({id:nextId++,date,amount,category,account,note,...(tags.length?{tags}:{})});if(checkLikelyDuplicateExpense(entry)){showConfirm('This looks similar to a recent expense. Add anyway?',()=>{entries.unshift(entry);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=roundMoney(Number(_ld.total||0)+amount);}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(entry);rememberTags(tags);saveData();resetExpenseForm(true);render();showActionToast(`${fmt(amount)} expense added`,`${category} · ${getAccountInfo(account).name}`,'🧾');if(typeof afterSave==='function'){afterSave(entry);return}});return;}entries.unshift(entry);if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=roundMoney(Number(_ld.total||0)+amount);}}else{adjustAccountBalance(account,-amount);}rememberExpensePattern(entry);rememberTags(tags);saveData();resetExpenseForm(true);render();showActionToast(`${fmt(amount)} expense added`,`${category} · ${getAccountInfo(account).name}`,'🧾');if(typeof afterSave==='function'){afterSave(entry);return}}
+function addIncomeCore(stayOnAdd=false,afterSave=null,{skipFutureDateCheck=false}={}){const date=document.getElementById('inc-date').value||todayStr;const _rawIAmt=(document.getElementById('inc-amount').value||'');if(/[eE]/.test(_rawIAmt)){showAlert('Please enter a plain number — scientific notation (e.g. 1e5) is not accepted.');return;}const amount=roundMoney(parseFloat(_rawIAmt)||0);const source=document.getElementById('inc-source').value;const account=document.getElementById('inc-account').value;const note=document.getElementById('inc-note').value.trim();if(!date){showAlert('Date is required.');return;}if(!amount||amount<=0){showAlert('Please enter an amount greater than ₱0.');return;}if(!source){showAlert('Please enter an income source.');return;}if(!account){showAlert('Please select an account.');return;}if(date>todayStr&&!skipFutureDateCheck){showConfirm('Date is in the future ('+date+'). Log this income anyway?',()=>addIncomeCore(stayOnAdd,afterSave,{skipFutureDateCheck:true}));return;}const income=stampRecord({id:nextIncId++,date,source,amount,note,account});incomes.unshift(income);adjustAccountBalance(account,amount);rememberIncomePattern(income);saveData();resetIncomeForm(true);render();showActionToast(`${fmt(amount)} income added`,`${source} · ${getAccountInfo(account).name}`,'💰');if(typeof afterSave==='function'){afterSave(income);return}if(stayOnAdd){showTab('add');return}showTab('dashboard');}
 function addEntry(){const needsTutorialAdvance=tutorialActive&&TUTORIAL_STEPS[tutorialStep]&&TUTORIAL_STEPS[tutorialStep].submit;addEntryCore(false,needsTutorialAdvance?tutorialAfterExpenseSaved:null)}
 
 /* ── SMS Auto-Fill ── */
@@ -2776,7 +3080,7 @@ function renderGoalsTimeline(){
 }
 
 function quickAdd(c){document.getElementById('f-cat').value=c;toggleCustom();showTab('add');document.getElementById('f-amount').focus()}
-function deleteEntry(id){const e=entries.find(x=>x.id===id);if(!e)return false;if(e.isExternalTransfer&&e.transferId)return deleteTransfer(e.transferId);if((e.isDebtPayment||e.isDebtPaymentFee)&&e.debtPaymentId)return deleteDebtPayment(e.debtPaymentId);if(e.isGoalContribution&&e.goalContributionId)return deleteGoalContribution(e.goalContributionId);showConfirm(`Delete this ${e.category} expense for ${fmt(e.amount)}?`,()=>{if(isCCAccount(e.account)){adjustAccountBalance(e.account,-e.amount);const _ccA=nwAccounts.find(a=>a.key===e.account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=Math.max(0,Number(_ld.total||0)-e.amount);}}else{adjustAccountBalance(e.account,e.amount);}entries=entries.filter(entry=>entry.id!==id);saveData();render();showActionToast('Expense deleted',`${e.category} · ${fmt(e.amount)}`,'🗑️');},'Delete',true);return true}
+function deleteEntry(id){const e=entries.find(x=>x.id===id);if(!e)return false;if(e.isExternalTransfer&&e.transferId)return deleteTransfer(e.transferId);if((e.isDebtPayment||e.isDebtPaymentFee)&&e.debtPaymentId)return deleteDebtPayment(e.debtPaymentId);if(e.isGoalContribution&&e.goalContributionId)return deleteGoalContribution(e.goalContributionId);showConfirm(`Delete this ${e.category} expense for ${fmt(e.amount)}?`,()=>{if(isCCAccount(e.account)){adjustAccountBalance(e.account,-e.amount);const _ccA=nwAccounts.find(a=>a.key===e.account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=roundMoney(Math.max(0,Number(_ld.total||0)-e.amount));}}else{adjustAccountBalance(e.account,e.amount);}entries=entries.filter(entry=>entry.id!==id);saveData();render();showActionToast('Expense deleted',`${e.category} · ${fmt(e.amount)}`,'🗑️');},'Delete',true);return true}
 function addIncome(){addIncomeCore()}
 function deleteIncome(id){const i=incomes.find(x=>x.id===id);if(!i)return false;showConfirm(`Delete this ${i.source} income for ${fmt(i.amount)}?`,()=>{if(i.isSalaryDeposit)clearSalaryReceiptForIncome(i);adjustAccountBalance(i.account,-i.amount);incomes=incomes.filter(income=>income.id!==id);saveData();render();showActionToast('Income deleted',`${i.source} · ${fmt(i.amount)}`,'🗑️');},'Delete',true);return true}
 function addGoal(){const name=document.getElementById('g-name').value.trim();const target=parseFloat(document.getElementById('g-target').value)||0;const current=parseFloat(document.getElementById('g-current').value)||0;const monthly=parseFloat(document.getElementById('g-monthly').value)||0;const targetDate=document.getElementById('g-target-date').value||'';if(!name||target<=0){showAlert('Enter name and target.');return;}goals.push({id:nextGoalId++,name,target,current,monthly,targetDate});['g-name','g-target','g-current','g-monthly','g-target-date'].forEach(id=>document.getElementById(id).value='');closeModal('modal-add-goal');saveData();render()}
@@ -2786,11 +3090,11 @@ function getGoalDeleteImpact(goalId){const contributionIds=new Set(goalContribut
 function openGoalContribution(id){const g=goals.find(x=>x.id===id);if(!g)return;activeGoalContributionGoalId=id;document.getElementById('gc-amount').value=g.monthly||'';document.getElementById('gc-date').value=todayStr;buildAccountSelect('gc-account',true);document.getElementById('gc-account').value=getDefaultAccountKey();document.getElementById('gc-note').value='';updateGoalContributionPreview();openModal('modal-goal-contribution')}
 function applyQuickGoalContribution(amount){document.getElementById('gc-amount').value=amount;updateGoalContributionPreview()}
 function applyGoalMonthlyContribution(){const g=goals.find(x=>x.id===activeGoalContributionGoalId);if(!g)return;document.getElementById('gc-amount').value=Number(g.monthly||0)||'';updateGoalContributionPreview()}
-function saveGoalContribution(){const g=goals.find(x=>x.id===activeGoalContributionGoalId);if(!g)return;let amount=parseFloat(document.getElementById('gc-amount').value)||0;const date=document.getElementById('gc-date').value;const account=document.getElementById('gc-account').value||getDefaultAccountKey();const note=document.getElementById('gc-note').value.trim();if(amount<=0||!date){showAlert('Enter a valid amount and date.');return;}if(!account){showAlert('Choose an account.');return;}const hasTarget=Number(g.target||0)>0;const remaining=hasTarget?Math.max(Number(g.target||0)-Number(g.current||0),0):Infinity;if(hasTarget&&remaining===0){showAlert(`${g.name} is already fully funded. Edit the goal to increase the target if you want to save more.`);return;}function _doSaveGoalContribution(finalAmount){const balanceState=getSpendValidationState(account,finalAmount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}g.current=Number(g.current||0)+finalAmount;const contributionId=nextGoalContributionId++;goalContributions.unshift(stampRecord({id:contributionId,goalId:g.id,name:g.name,amount:finalAmount,date,account,note}));entries.unshift(stampRecord({id:nextId++,date,category:'Goal Contribution',amount:finalAmount,note:`Goal Contribution: ${g.name}${note?` · ${note}`:''}`,account,isGoalContribution:true,goalId:g.id,goalContributionId:contributionId}));adjustAccountBalance(account,-finalAmount);const goalDone=Number(g.current||0)>=Number(g.target||0)&&hasTarget;closeModal('modal-goal-contribution');saveData();render();showActionToast(`${fmt(finalAmount)} added to ${g.name}`,`New saved amount: ${fmt(g.current||0)}`,'🎯');if(goalDone)showMilestoneSheet({icon:'🎯',title:'Goal completed',body:`${g.name} is now fully funded.`,statLabel:'Saved total',statValue:fmt(g.current||0)});}if(hasTarget&&amount>remaining){showConfirm(`Only ${fmt(remaining)} is needed to complete this goal.\n\nThe contribution will be capped at ${fmt(remaining)} so your account balance stays accurate. Continue?`,()=>{_doSaveGoalContribution(remaining);});return;}_doSaveGoalContribution(amount);}
-function deleteGoalContribution(id){const gc=goalContributions.find(x=>x.id===id);if(!gc)return false;const g=goals.find(x=>x.id===gc.goalId);showConfirm(`Delete this contribution of ${fmt(gc.amount)}${g?` for ${g.name}`:''}?`,()=>{if(g)g.current=Math.max(0,Number(g.current||0)-Number(gc.amount||0));adjustAccountBalance(gc.account,Number(gc.amount||0));goalContributions=goalContributions.filter(x=>x.id!==id);entries=entries.filter(e=>e.goalContributionId!==id);saveData();render();if(document.getElementById('modal-goal-history')?.classList.contains('show')&&g)openGoalHistory(g.id);showActionToast('Contribution deleted',`${g?.name||'Goal'} · ${fmt(gc.amount)}`,'🗑️');},'Delete',true);return true}
+function saveGoalContribution(){const g=goals.find(x=>x.id===activeGoalContributionGoalId);if(!g)return;let amount=roundMoney(parseFloat(document.getElementById('gc-amount').value)||0);const date=document.getElementById('gc-date').value;const account=document.getElementById('gc-account').value||getDefaultAccountKey();const note=document.getElementById('gc-note').value.trim();if(amount<=0||!date){showAlert('Enter a valid amount and date.');return;}if(!account){showAlert('Choose an account.');return;}const hasTarget=Number(g.target||0)>0;const remaining=hasTarget?roundMoney(Math.max(Number(g.target||0)-Number(g.current||0),0)):Infinity;if(hasTarget&&remaining===0){showAlert(`${g.name} is already fully funded. Edit the goal to increase the target if you want to save more.`);return;}function _doSaveGoalContribution(finalAmount){finalAmount=roundMoney(finalAmount);const balanceState=getSpendValidationState(account,finalAmount);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}g.current=roundMoney(Number(g.current||0)+finalAmount);const contributionId=nextGoalContributionId++;goalContributions.unshift(stampRecord({id:contributionId,goalId:g.id,name:g.name,amount:finalAmount,date,account,note}));entries.unshift(stampRecord({id:nextId++,date,category:'Goal Contribution',amount:finalAmount,note:`Goal Contribution: ${g.name}${note?` · ${note}`:''}`,account,isGoalContribution:true,goalId:g.id,goalContributionId:contributionId}));adjustAccountBalance(account,-finalAmount);const goalDone=Number(g.current||0)>=Number(g.target||0)&&hasTarget;closeModal('modal-goal-contribution');saveData();render();showActionToast(`${fmt(finalAmount)} added to ${g.name}`,`New saved amount: ${fmt(g.current||0)}`,'🎯');if(goalDone)showMilestoneSheet({icon:'🎯',title:'Goal completed',body:`${g.name} is now fully funded.`,statLabel:'Saved total',statValue:fmt(g.current||0)});}if(hasTarget&&amount>remaining){showConfirm(`Only ${fmt(remaining)} is needed to complete this goal.\n\nThe contribution will be capped at ${fmt(remaining)} so your account balance stays accurate. Continue?`,()=>{_doSaveGoalContribution(remaining);});return;}_doSaveGoalContribution(amount);}
+function deleteGoalContribution(id){const gc=goalContributions.find(x=>x.id===id);if(!gc)return false;const g=goals.find(x=>x.id===gc.goalId);showConfirm(`Delete this contribution of ${fmt(gc.amount)}${g?` for ${g.name}`:''}?`,()=>{if(g)g.current=roundMoney(Math.max(0,Number(g.current||0)-Number(gc.amount||0)));adjustAccountBalance(gc.account,Number(gc.amount||0));goalContributions=goalContributions.filter(x=>x.id!==id);entries=entries.filter(e=>e.goalContributionId!==id);saveData();render();if(document.getElementById('modal-goal-history')?.classList.contains('show')&&g)openGoalHistory(g.id);showActionToast('Contribution deleted',`${g?.name||'Goal'} · ${fmt(gc.amount)}`,'🗑️');},'Delete',true);return true}
 function openGoalHistory(id){const g=goals.find(x=>x.id===id);if(!g)return;document.getElementById('gh-title').textContent=`${g.name} Contributions`;const list=getGoalContributions(id);document.getElementById('gh-list').innerHTML=list.length?`<div class="tx-list">${list.map(c=>{const ai=getAccountInfo(c.account);return `<div class="tx-item"><div class="tx-icon cat-savings">🎯</div><div class="tx-info"><div class="tx-name">${fmt(c.amount)}</div><div class="tx-meta">${c.date}${c.note?` · ${esc(c.note)}`:''}${ai.name?` · ${esc(ai.name)}`:''}</div></div><button class="btn-icon tx-delete" onclick="deleteGoalContribution(${c.id})" style="border:none;color:var(--red);font-size:12px">✕</button></div>`}).join('')}</div>`:'<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">No contributions yet</div></div>';openModal('modal-goal-history')}
 function openGoalEdit(id){const g=goals.find(x=>x.id===id);if(!g)return;editingGoalId=id;document.getElementById('mg-name').value=g.name;document.getElementById('mg-target').value=g.target;document.getElementById('mg-current').value=g.current;document.getElementById('mg-monthly').value=g.monthly;document.getElementById('mg-target-date').value=g.targetDate||'';openModal('modal-edit-goal')}
-function saveGoalEdit(){const g=goals.find(x=>x.id===editingGoalId);if(!g)return;g.name=document.getElementById('mg-name').value.trim()||g.name;g.target=parseFloat(document.getElementById('mg-target').value)||g.target;g.current=parseFloat(document.getElementById('mg-current').value)||0;g.monthly=parseFloat(document.getElementById('mg-monthly').value)||0;g.targetDate=document.getElementById('mg-target-date').value||'';closeModal('modal-edit-goal');saveData();render()}
+function saveGoalEdit(){const g=goals.find(x=>x.id===editingGoalId);if(!g)return;g.name=document.getElementById('mg-name').value.trim()||g.name;g.target=roundMoney(parseFloat(document.getElementById('mg-target').value)||g.target);g.current=roundMoney(parseFloat(document.getElementById('mg-current').value)||0);g.monthly=roundMoney(parseFloat(document.getElementById('mg-monthly').value)||0);g.targetDate=document.getElementById('mg-target-date').value||'';closeModal('modal-edit-goal');saveData();render()}
 function deleteGoal(){const goal=goals.find(g=>g.id===editingGoalId);if(!goal)return false;const impact=getGoalDeleteImpact(editingGoalId);if(impact.contributions||impact.linkedEntries){showAlert(`Can't delete ${goal.name} yet. It still has ${impact.contributions} contribution log${impact.contributions!==1?'s':''} and ${impact.linkedEntries} linked transaction${impact.linkedEntries!==1?'s':''}. Remove the contribution history first so balances and savings progress stay consistent.`);return false;}showConfirm(`Delete ${goal.name}?`,()=>{goals=goals.filter(g=>g.id!==editingGoalId);closeModal('modal-edit-goal');saveData();render();showActionToast('Goal deleted',goal.name,'🗑️');},'Delete',true);return true}
 function getDebtLenderTypeForProduct(type=''){
   return({'Credit Card':'Credit Card Issuer','Personal Loan':'Bank','Friend/Family':'Friend/Family','BNPL':'Fintech / BNPL','Other':'Other'})[type]||'Other';
@@ -2832,12 +3136,12 @@ function getDebtPayoffProjection(remaining,payment,annualRate){
 }
 function openDebtHistory(id){const debt=debts.find(d=>d.id===id);if(!debt)return;document.getElementById('dh-title').textContent=`${debt.name} Payments`;const list=getDebtPaymentsForDebt(id);document.getElementById('dh-list').innerHTML=list.length?list.map(p=>`<div class="tx-item"><div class="tx-icon cat-debt">💳</div><div class="tx-info"><div class="tx-name">${fmt(p.amount)}</div><div class="tx-meta">${esc(formatDateTime(p))}${p.markedMonthly?' · monthly':''}${p.account?` · ${esc(getAccountInfo(p.account).name)}`:''}${getDebtPaymentFeeMeta(p)}${p.note?` · ${esc(p.note)}`:''}</div></div></div>`).join(''):`<div class="empty"><div class="empty-text">No payments yet</div></div>`;openModal('modal-debt-history')}
 function openDebtPayment(id){const debt=debts.find(x=>x.id===id);if(!debt)return;activeDebtPaymentDebtId=id;document.getElementById('dp-debt-name').textContent=`Payment for ${debt.name}`;document.getElementById('dp-amount').value=debt.payment||debt.total||'';document.getElementById('dp-date').value=todayStr;document.getElementById('dp-note').value='';document.getElementById('dp-fee').value='0';document.getElementById('dp-mark-paid').value='yes';buildAccountSelect('dp-account',true);document.getElementById('dp-account').value=getDefaultAccountKey();updateDebtPaymentPreview();openModal('modal-debt-payment')}
-function saveDebtPayment(){const debt=debts.find(d=>d.id===activeDebtPaymentDebtId);if(!debt)return;const rawAmount=parseFloat(document.getElementById('dp-amount').value)||0;const fee=Math.max(parseFloat(document.getElementById('dp-fee').value)||0,0);const date=document.getElementById('dp-date').value;const account=document.getElementById('dp-account').value||getDefaultAccountKey();const note=document.getElementById('dp-note').value.trim();const markPaid=document.getElementById('dp-mark-paid').value==='yes';if(rawAmount<=0||!date){showAlert('Enter a valid amount and date.');return;}if(!account){showAlert('Choose an account.');return;}const amount=Math.min(rawAmount,Math.max(Number(debt.total||0),0));if(amount<=0){showAlert('This debt is already fully paid.');return;}const totalDeduction=amount+fee;const balanceState=getSpendValidationState(account,totalDeduction);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}debt.total=Math.max(0,Number(debt.total||0)-amount);if(markPaid)debt.lastPaidMonth=(date||todayStr).slice(0,7);debt.lastPaidDate=date;debt.lastPaidAmount=amount;const paymentId=nextDebtPaymentId++;debtPayments.unshift(stampRecord({id:paymentId,debtId:debt.id,name:debt.name,amount,fee,date,account,note,markedMonthly:markPaid}));if(fee>0)entries.unshift(stampRecord({id:nextId++,date,category:'Transfer Fees',amount:fee,account,note:`Debt payment fee: ${debt.name}${note?` · ${note}`:''}`,isDebtPaymentFee:true,debtId:debt.id,debtPaymentId:paymentId}));entries.unshift(stampRecord({id:nextId++,date,category:'Debt Payment',amount,note:`Debt Payment: ${debt.name}${note?` · ${note}`:''}`,account,isDebtPayment:true,debtId:debt.id,debtPaymentId:paymentId}));adjustAccountBalance(account,-totalDeduction);
+function saveDebtPayment(){const debt=debts.find(d=>d.id===activeDebtPaymentDebtId);if(!debt)return;const rawAmount=roundMoney(parseFloat(document.getElementById('dp-amount').value)||0);const fee=Math.max(roundMoney(parseFloat(document.getElementById('dp-fee').value)||0),0);const date=document.getElementById('dp-date').value;const account=document.getElementById('dp-account').value||getDefaultAccountKey();const note=document.getElementById('dp-note').value.trim();const markPaid=document.getElementById('dp-mark-paid').value==='yes';if(rawAmount<=0||!date){showAlert('Enter a valid amount and date.');return;}if(!account){showAlert('Choose an account.');return;}const amount=roundMoney(Math.min(rawAmount,Math.max(Number(debt.total||0),0)));if(amount<=0){showAlert('This debt is already fully paid.');return;}const totalDeduction=roundMoney(amount+fee);const balanceState=getSpendValidationState(account,totalDeduction);if(!balanceState.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(balanceState.available)}`);return;}debt.total=roundMoney(Math.max(0,Number(debt.total||0)-amount));if(markPaid)debt.lastPaidMonth=(date||todayStr).slice(0,7);debt.lastPaidDate=date;debt.lastPaidAmount=amount;const paymentId=nextDebtPaymentId++;debtPayments.unshift(stampRecord({id:paymentId,debtId:debt.id,name:debt.name,amount,fee,date,account,note,markedMonthly:markPaid}));if(fee>0)entries.unshift(stampRecord({id:nextId++,date,category:'Transfer Fees',amount:fee,account,note:`Debt payment fee: ${debt.name}${note?` · ${note}`:''}`,isDebtPaymentFee:true,debtId:debt.id,debtPaymentId:paymentId}));entries.unshift(stampRecord({id:nextId++,date,category:'Debt Payment',amount,note:`Debt Payment: ${debt.name}${note?` · ${note}`:''}`,account,isDebtPayment:true,debtId:debt.id,debtPaymentId:paymentId}));adjustAccountBalance(account,-totalDeduction);
   // Sync linked NW credit card account balance
   const linkedNwAcc=nwAccounts.find(a=>a.accountType==='credit_card'&&String(a.linkedDebtId)===String(debt.id));
-  if(linkedNwAcc)nwBalances[linkedNwAcc.key]=Math.max(0,Number(debt.total||0));
+  if(linkedNwAcc)nwBalances[linkedNwAcc.key]=roundMoney(Math.max(0,Number(debt.total||0)));
   const cleared=Number(debt.total||0)<=0;closeModal('modal-debt-payment');saveData();render();showActionToast(`${fmt(amount)} paid to ${debt.name}`,`Remaining balance: ${fmt(debt.total||0)}${fee>0?` · Fee ${fmt(fee)}`:''}`,'💳');if(cleared)showMilestoneSheet({icon:'🎉',title:'Debt cleared',body:`${debt.name} is now fully paid.`,statLabel:'Amount cleared',statValue:fmt(amount)})}
-function deleteDebtPayment(paymentId){const payment=debtPayments.find(p=>p.id===paymentId);if(!payment)return false;showConfirm(`Delete this debt payment of ${fmt(payment.amount)} for ${payment.name}?`,()=>{const debt=debts.find(d=>d.id===payment.debtId);if(debt)debt.total=Number(debt.total||0)+Number(payment.amount||0);adjustAccountBalance(payment.account,getDebtPaymentTotalDeduction(payment));debtPayments=debtPayments.filter(p=>p.id!==paymentId);entries=entries.filter(e=>e.debtPaymentId!==paymentId);refreshDebtPaymentDerivedState(payment.debtId);saveData();render();showActionToast('Debt payment deleted',`${payment.name} · ${fmt(payment.amount)}${getDebtPaymentFee(payment)>0?` · Fee ${fmt(getDebtPaymentFee(payment))}`:''}`,'🗑️');},'Delete',true);return true}
+function deleteDebtPayment(paymentId){const payment=debtPayments.find(p=>p.id===paymentId);if(!payment)return false;showConfirm(`Delete this debt payment of ${fmt(payment.amount)} for ${payment.name}?`,()=>{const debt=debts.find(d=>d.id===payment.debtId);if(debt)debt.total=roundMoney(Number(debt.total||0)+Number(payment.amount||0));adjustAccountBalance(payment.account,getDebtPaymentTotalDeduction(payment));debtPayments=debtPayments.filter(p=>p.id!==paymentId);entries=entries.filter(e=>e.debtPaymentId!==paymentId);refreshDebtPaymentDerivedState(payment.debtId);saveData();render();showActionToast('Debt payment deleted',`${payment.name} · ${fmt(payment.amount)}${getDebtPaymentFee(payment)>0?` · Fee ${fmt(getDebtPaymentFee(payment))}`:''}`,'🗑️');},'Delete',true);return true}
 function addWish(){const name=document.getElementById('w-name').value.trim();const price=parseFloat(document.getElementById('w-price').value)||0;const priority=document.getElementById('w-priority').value;if(!name){showAlert('Enter item name.');return;}wishlist.push({id:nextWishId++,name,price,priority,addedDate:todayStr});document.getElementById('w-name').value='';document.getElementById('w-price').value='';closeModal('modal-add-wish');saveData();render()}
 function deleteWish(id){const wish=wishlist.find(w=>w.id===id);if(!wish)return false;showConfirm(`Remove "${wish.name}" from your wishlist?`,()=>{wishlist=wishlist.filter(w=>w.id!==id);saveData();render();showActionToast('Wish removed',wish.name,'🗑️');},'Delete',true);return true}
 function buyWish(id){
@@ -3668,7 +3972,7 @@ function removeHistoryItem(item){
     const payment=debtPayments.find(p=>p.id===item.debtPaymentId);
     if(!payment)return false;
     const debt=debts.find(d=>d.id===payment.debtId);
-    if(debt)debt.total=Number(debt.total||0)+Number(payment.amount||0);
+    if(debt)debt.total=roundMoney(Number(debt.total||0)+Number(payment.amount||0));
     adjustAccountBalance(payment.account,getDebtPaymentTotalDeduction(payment));
     debtPayments=debtPayments.filter(p=>p.id!==payment.id);
     entries=entries.filter(e=>e.debtPaymentId!==payment.id);
@@ -3691,7 +3995,7 @@ function removeHistoryItem(item){
   }
   const entry=entries.find(e=>e.id===item.id);
   if(!entry)return false;
-  if(isCCAccount(entry.account)){adjustAccountBalance(entry.account,-Number(entry.amount||0));const _ccA=nwAccounts.find(a=>a.key===entry.account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=Math.max(0,Number(_ld.total||0)-Number(entry.amount||0));}}else{adjustAccountBalance(entry.account,Number(entry.amount||0));}
+  if(isCCAccount(entry.account)){adjustAccountBalance(entry.account,-Number(entry.amount||0));const _ccA=nwAccounts.find(a=>a.key===entry.account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=roundMoney(Math.max(0,Number(_ld.total||0)-Number(entry.amount||0)));}}else{adjustAccountBalance(entry.account,Number(entry.amount||0));}
   entries=entries.filter(e=>e.id!==entry.id);
   return true;
 }
@@ -3849,7 +4153,7 @@ function quickDuplicateHistoryItem(key){
     if(account&&!bs.hasEnough){showAlert(`Not enough balance in ${getAccountInfo(account).name}. Available: ${fmt(bs.available)}`);return;}
     const dup=stampRecord({...e,id:nextId++,date:todayStr});
     entries.unshift(dup);
-    if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=Number(_ld.total||0)+amount;}}else{adjustAccountBalance(account,-amount);}
+    if(isCCAccount(account)){adjustAccountBalance(account,amount);const _ccA=nwAccounts.find(a=>a.key===account);if(_ccA?.linkedDebtId){const _ld=debts.find(d=>String(d.id)===String(_ccA.linkedDebtId));if(_ld)_ld.total=roundMoney(Number(_ld.total||0)+amount);}}else{adjustAccountBalance(account,-amount);}
     saveData();render();showActionToast(`${fmt(amount)} duplicated`,esc(e.category),'🧾');
   }else if(kind==='income'){
     const i=incomes.find(x=>x.id===id);if(!i||i.isSalaryDeposit)return;
@@ -3941,7 +4245,7 @@ function syncSalaryReceiptAccountForIncome(income,newAccount){const key=findSala
 function clearSalaryReceiptForIncome(income){const key=findSalaryReceiptKeyForIncome(income);if(!key)return false;income.salaryReceiptKey=key;if(hasOtherSalaryIncomeForKey(key,income.id))return false;if(paySchedule?.received?.[key])delete paySchedule.received[key];if(activeSalaryReceiptKey===key)activeSalaryReceiptKey='';return true}
 function getPendingSalarySplits(){normalizePaySchedule();const monthKey=currentMonthKey();const todayDay=now.getDate();const received=paySchedule.received||{};return (paySchedule.splits||[]).filter(split=>split.day<=todayDay&&!received[getSalaryReceiptKey(monthKey,split.day)]).sort((a,b)=>a.day-b.day)}
 function openSalaryReceiptModal(day){normalizePaySchedule();const monthKey=currentMonthKey();const split=(paySchedule.splits||[]).find(s=>parseInt(s.day)===parseInt(day));if(!split)return;activeSalaryReceiptKey=getSalaryReceiptKey(monthKey,split.day);document.getElementById('salary-receive-subtext').textContent=`Confirm your salary deposit for day ${split.day}.`;document.getElementById('sr-amount').value=split.amount||'';document.getElementById('sr-date').value=todayStr;buildAccountSelect('sr-account',false);document.getElementById('sr-account').value=split.account||getDefaultAccountKey();document.getElementById('sr-note').value='';openModal('modal-salary-receive')}
-function saveSalaryReceipt(){normalizePaySchedule();const amount=parseFloat(document.getElementById('sr-amount').value)||0;const date=document.getElementById('sr-date').value||todayStr;const account=document.getElementById('sr-account').value||getDefaultAccountKey();const note=(document.getElementById('sr-note').value||'').trim();if(amount<=0){showAlert('Enter a valid salary amount.');return;}const split=(paySchedule.splits||[]).find(s=>getSalaryReceiptKey(currentMonthKey(),s.day)===activeSalaryReceiptKey);if(!split){showAlert('Salary schedule not found.');return;}const incomeNote=note||`Scheduled salary · day ${split.day}`;incomes.unshift(stampRecord({id:nextIncId++,date,source:'Salary',amount,note:incomeNote,account,isSalaryDeposit:true}));adjustAccountBalance(account,amount);paySchedule.received=paySchedule.received||{};paySchedule.received[activeSalaryReceiptKey]={amount,date,account,note:incomeNote,createdAt:new Date().toISOString()};closeModal('modal-salary-receive');saveData();render();showActionToast(`${fmt(amount)} salary received`,`${getAccountInfo(account).name}`,'💼');showTab('dashboard')}
+function saveSalaryReceipt(){normalizePaySchedule();const amount=roundMoney(parseFloat(document.getElementById('sr-amount').value)||0);const date=document.getElementById('sr-date').value||todayStr;const account=document.getElementById('sr-account').value||getDefaultAccountKey();const note=(document.getElementById('sr-note').value||'').trim();if(amount<=0){showAlert('Enter a valid salary amount.');return;}const split=(paySchedule.splits||[]).find(s=>getSalaryReceiptKey(currentMonthKey(),s.day)===activeSalaryReceiptKey);if(!split){showAlert('Salary schedule not found.');return;}const incomeNote=note||`Scheduled salary · day ${split.day}`;incomes.unshift(stampRecord({id:nextIncId++,date,source:'Salary',amount,note:incomeNote,account,isSalaryDeposit:true}));adjustAccountBalance(account,amount);paySchedule.received=paySchedule.received||{};paySchedule.received[activeSalaryReceiptKey]={amount,date,account,note:incomeNote,createdAt:new Date().toISOString()};closeModal('modal-salary-receive');saveData();render();showActionToast(`${fmt(amount)} salary received`,`${getAccountInfo(account).name}`,'💼');showTab('dashboard')}
 function renderSalaryPromptCard(){
   const wrap=document.getElementById('salary-prompt-card');if(!wrap)return;
   wrap.innerHTML='';
@@ -5186,7 +5490,7 @@ function render(){
   const problemCats=budgetProgressItems.filter(c=>c.budget>0&&c.pct>=75);
   const budgetAttCard=document.getElementById('budget-attention-card');
   if(problemCats.length){
-    budgetAttCard.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Budget Attention</span><span style="font-size:12px;color:var(--text3);cursor:pointer;font-weight:600" onclick="openAllBudgets()">All budgets →</span></div>${problemCats.slice(0,4).map(c=>{const color=c.over?'var(--red)':'var(--amber)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)} ${c.over?'<span style="color:var(--red);font-size:11px">⚠️ over</span>':''}</span><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(c.pct,100)}%;background:${color}"></div></div></div>`}).join('')}</div>`;
+    budgetAttCard.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Budget Attention</span><div style="display:flex;gap:10px;align-items:center"><span style="font-size:11px;color:var(--text3);cursor:pointer;font-weight:600" onclick="openAllBudgets()">All →</span><span style="font-size:11px;color:var(--accent);cursor:pointer;font-weight:700" onclick="openBudgetHub()">Budget Hub →</span></div></div>${problemCats.slice(0,4).map(c=>{const color=c.over?'var(--red)':'var(--amber)';return`<div class="progress"><div class="progress-header"><span class="progress-label">${c.icon||'📦'} ${esc(c.name.length>22?c.name.substring(0,22)+'…':c.name)} ${c.over?'<span style="color:var(--red);font-size:11px">⚠️ over</span>':''}</span><span class="progress-value" style="color:${color}">${formatBudgetProgress(c.spent,c.budget)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(c.pct,100)}%;background:${color}"></div></div></div>`}).join('')}</div>`;
   }else{
     budgetAttCard.innerHTML='';
   }

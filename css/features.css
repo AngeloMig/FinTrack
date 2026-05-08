@@ -31,7 +31,7 @@
   .tx-icon { width: 38px; height: 38px; }
   .greeting { padding: 20px; }
   .notif-item { padding: 10px 12px; }
-  .nav-icon { width: 30px; height: 26px; }
+  .nav-icon { width: 20px; height: 20px; }
   .bottom-nav { padding-left: 6px; padding-right: 6px; }
 }
 
@@ -307,3 +307,64 @@
 
 /* ── Bill Split ── */
 .split-settled{opacity:.5}
+
+/* Add tab revamp */
+#sec-add{display:none}
+#sec-add.active{display:block}
+.add-page-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 0 10px;padding:12px 2px 10px;border-bottom:1px solid var(--border);background:transparent;box-shadow:none}
+.add-page-eyebrow{font-size:10px;font-weight:800;letter-spacing:.10em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.add-page-hero h2{margin:0;font-size:18px;line-height:1.1;letter-spacing:-.02em}
+.add-page-hero p{margin:5px 0 0;max-width:30ch;font-size:12px;line-height:1.4;color:var(--text2)}
+.add-sms-hero-btn{flex-shrink:0;width:auto;min-height:34px;border-radius:10px;background:var(--surface)}
+#sec-add .add-form-card,#sec-add .add-quick-card{padding:14px;border-radius:14px;border-color:var(--border);box-shadow:none;overflow:hidden}
+#sec-add .add-form-card{position:relative}
+#sec-add .add-form-card::before{display:none}
+#sec-add .add-form-head{align-items:flex-start;padding-bottom:10px;margin-bottom:12px}
+#sec-add .add-form-head .card-title{font-size:14px;font-weight:800;letter-spacing:-.01em}
+.add-form-sub{margin-top:4px;font-size:12px;line-height:1.45;color:var(--text2)}
+.add-form-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.add-form-badge.expense,.add-form-badge.income{color:var(--text3);background:transparent}
+#sec-add .input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#sec-add .input-group{margin-bottom:10px}
+#sec-add .input-label{margin-bottom:5px;font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--text3)}
+#sec-add .input{min-height:40px;padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-size:13px}
+#sec-add .input:focus,#sec-add .add-income-card .input:focus{border-color:var(--text3);box-shadow:0 0 0 3px rgba(100,116,139,.10)}
+#sec-add .add-last-row{align-items:end;margin-top:2px}
+#sec-add .add-last-row .btn{min-height:40px;height:auto;border-radius:10px;font-weight:800}
+#sec-add .input-group:has(#f-tags){padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+#sec-add .add-balance-preview{margin:0 0 10px!important;border-radius:12px;background:var(--surface2)}
+#sec-add .cat-group-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#sec-add .cat-group-btn{min-height:34px;border-radius:10px;font-weight:800}
+#sec-add .add-quick-card .card-header{padding-bottom:9px;margin-bottom:10px}
+#sec-add .quick-actions{display:flex;flex-wrap:wrap;gap:8px;overflow:visible}
+#sec-add .quick-chip{min-height:32px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font-size:11px;font-weight:700;color:var(--text2)}
+#sec-add .quick-chip:hover,#sec-add .quick-chip:focus-visible{border-color:var(--text3);background:var(--surface2);color:var(--text)}
+#sec-add .btn.btn-primary,#sec-add .btn.btn-success{border:none;box-shadow:none}
+#sec-add .btn.btn-primary{
+  background:var(--accent-soft);
+  color:var(--accent);
+  border:1px solid rgba(99,102,241,.22);
+}
+#sec-add .btn.btn-primary:hover{
+  background:rgba(99,102,241,.14);
+  border-color:rgba(99,102,241,.34);
+  color:var(--accent);
+}
+#sec-add .btn.btn-success{
+  background:var(--green-soft);
+  color:var(--green);
+  border:1px solid rgba(16,185,129,.22);
+}
+#sec-add .btn.btn-success:hover{
+  background:rgba(16,185,129,.14);
+  border-color:rgba(16,185,129,.34);
+  color:var(--green);
+}
+
+@media(max-width:420px){
+  #sec-add .input-row{grid-template-columns:1fr}
+  #sec-add .add-last-row{grid-template-columns:1fr}
+  #sec-add .add-last-row .btn{width:100%}
+  .add-page-hero{padding:10px 2px}
+  .add-page-hero h2{font-size:17px}
+}

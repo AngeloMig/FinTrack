@@ -110,7 +110,8 @@ body{
   border-radius:18px;
 }
 .nav-item.active{
-  background:var(--accent-soft);
+  background:transparent;
+  color:var(--accent);
 }
 .nav-item.active .nav-icon{
   background:transparent;
@@ -623,10 +624,11 @@ textarea{
   font-weight:600;
 }
 .nav-item.active{
-  background:var(--accent-soft);
+  background:transparent;
+  color:var(--accent);
 }
 .nav-icon{
-  border-radius:var(--radius-xs);
+  border-radius:0;
 }
 
 @supports (padding-top: env(safe-area-inset-top)){
@@ -954,5 +956,309 @@ textarea{
     width:calc(100vw - 28px);
     max-width:340px;
     border-radius:12px;
+  }
+}
+
+/* Mobile usability hardening */
+html,
+body{
+  max-width:100%;
+  overflow-x:hidden;
+}
+
+.app,
+.section,
+.card,
+.modal,
+.tx-list,
+.tx-item,
+.cashflow-item,
+.history-group,
+.budget-hub,
+#analytics-expanded,
+#budget-bars,
+#goals-list,
+#wishlist{
+  min-width:0;
+}
+
+img,
+svg,
+canvas,
+table{
+  max-width:100%;
+}
+
+.topbar{
+  gap:10px;
+}
+.topbar h1{
+  flex:0 0 auto;
+}
+.topbar-actions{
+  min-width:0;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  justify-content:flex-end;
+}
+.topbar-actions::-webkit-scrollbar{
+  display:none;
+}
+.icon-btn,
+.btn-icon{
+  min-width:40px;
+  min-height:40px;
+  flex:0 0 auto;
+}
+
+.btn,
+button,
+.quick-chip,
+.filter-pill,
+.tab-btn,
+.hvt-btn,
+.history-active-chip,
+.cat-group-btn,
+.budget-stepper-btn,
+.budget-edit-btn{
+  -webkit-tap-highlight-color:transparent;
+}
+.btn{
+  min-height:42px;
+}
+.btn-sm{
+  min-height:36px;
+}
+.quick-chip,
+.filter-pill{
+  min-height:34px;
+}
+
+.card-header{
+  flex-wrap:wrap;
+  align-items:flex-start;
+}
+.card-header > *{
+  min-width:0;
+}
+.card-badge{
+  flex-shrink:0;
+  max-width:100%;
+  white-space:normal;
+  text-align:center;
+}
+
+.input,
+textarea.input,
+select.input{
+  min-height:42px;
+}
+.input-row,
+.input-row-3{
+  min-width:0;
+}
+
+.tx-item{
+  align-items:flex-start;
+  min-height:48px;
+}
+.tx-info,
+.cashflow-main,
+.history-topbar-copy,
+.budget-category-copy,
+.budget-swim-row-info{
+  min-width:0;
+}
+.tx-name,
+.cashflow-name,
+.budget-swim-row-name{
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tx-meta,
+.cashflow-meta{
+  overflow-wrap:anywhere;
+}
+.tx-amount,
+.cashflow-amount{
+  max-width:38%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.25;
+  font-variant-numeric:tabular-nums;
+}
+
+.modal{
+  width:100%;
+  max-width:min(480px,100vw);
+  overscroll-behavior:contain;
+}
+.modal-actions{
+  flex-wrap:wrap;
+}
+.modal-actions .btn{
+  flex:1 1 120px;
+}
+
+.donut-container{
+  min-width:0;
+}
+.donut-legend{
+  min-width:0;
+}
+.bar-row,
+.progress-header,
+.budget-val-row,
+.ms-prog-labels,
+.safe-spend-meta-row,
+.safe-spend-progress-label,
+.greeting-progress-meta,
+.goal-bar-labels{
+  min-width:0;
+}
+
+.budget-category-row,
+.budget-swim-row{
+  min-width:0;
+}
+.budget-category-actions{
+  min-width:0;
+}
+.budget-input-row{
+  min-width:0;
+}
+.budget-input-row .input{
+  min-width:0;
+  width:100%;
+}
+
+#budget-bars .progress-label,
+#analytics-expanded .progress-label{
+  min-width:0;
+}
+#budget-bars .budget-val-row{
+  min-width:72px;
+  max-width:44%;
+}
+
+#goals-list .goal-top{
+  min-width:0;
+}
+#goals-list .goal-name-row{
+  min-width:0;
+}
+#goals-list .goal-actions .btn,
+#wishlist .wish-card .btn{
+  min-height:40px;
+}
+
+@media(max-width:420px){
+  .app{
+    padding-left:12px;
+    padding-right:12px;
+  }
+  .topbar{
+    margin-left:-12px;
+    margin-right:-12px;
+    padding-left:12px;
+    padding-right:12px;
+  }
+  .card{
+    padding:13px;
+  }
+  .input-row,
+  .input-row-3{
+    grid-template-columns:1fr;
+    gap:0;
+  }
+  .history-bulk-grid,
+  .choice-grid{
+    grid-template-columns:1fr;
+  }
+  .safe-spend-title-row,
+  .safe-spend-meta-row,
+  .budget-split-head,
+  .budget-review-head,
+  .cashflow-item{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .safe-spend-days-pill,
+  .safe-spend-status,
+  .safe-spend-today-left{
+    align-self:flex-start;
+  }
+  .tx-amount,
+  .cashflow-amount{
+    max-width:42%;
+  }
+  .bottom-nav{
+    width:calc(100% - 16px);
+    padding:6px;
+  }
+  .nav-item{
+    min-height:50px;
+    font-size:9px;
+    gap:3px;
+  }
+  .nav-icon{
+    width:20px;
+    height:20px;
+  }
+}
+
+@media(max-width:360px){
+  .app{
+    padding-left:10px;
+    padding-right:10px;
+  }
+  .topbar{
+    margin-left:-10px;
+    margin-right:-10px;
+    padding-left:10px;
+    padding-right:10px;
+    gap:8px;
+  }
+  .topbar-actions{
+    gap:4px;
+  }
+  .icon-btn,
+  .btn-icon{
+    min-width:36px;
+    min-height:36px;
+    width:36px;
+    height:36px;
+  }
+  .card{
+    padding:12px;
+  }
+  .tx-item{
+    gap:8px;
+    padding:10px 8px;
+  }
+  .tx-icon,
+  .cashflow-icon{
+    width:34px;
+    height:34px;
+  }
+  .tx-amount,
+  .cashflow-amount{
+    max-width:40%;
+    font-size:12px;
+  }
+  .bottom-nav{
+    width:calc(100% - 12px);
+  }
+  .nav-item{
+    min-width:0;
+    padding-left:0;
+    padding-right:0;
+  }
+  #goals-list .goal-stats{
+    grid-template-columns:1fr;
+  }
+  #wishlist .wish-card > div:last-child{
+    grid-template-columns:1fr !important;
   }
 }
