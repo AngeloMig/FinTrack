@@ -59,14 +59,7 @@ function renderSpendForecastCard(){
   try{
     const mount=document.getElementById('spend-forecast-card');
     if(!mount)return;
-    const data=getSpendForecastData();
-    if(!data||!data.items.length){mount.innerHTML='';return;}
-    const show=_forecastExpanded?data.items:data.items.slice(0,3);
-    mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">📈 Spend Forecast</span><span class="card-badge" style="background:var(--red-soft,#fee2e2);color:var(--red)">${data.items.length} at risk</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Based on ${data.daysElapsed}/${data.daysInMonth} days elapsed — projected end-of-month</div>
-      ${show.map(item=>`<div class="focus-item"><div class="focus-top"><div><div class="focus-name">${item.icon} ${esc(item.name)}</div><div class="focus-meta">${fmt(item.spent)} spent → ${fmt(item.projected)} projected · ${fmt(item.overAmt)} over</div></div><span class="focus-tag risk">${item.overPct}% over</span></div></div>`).join('')}
-      ${data.items.length>3?`<button class="btn btn-ghost btn-sm" onclick="toggleForecastExpand()" style="margin-top:8px">${_forecastExpanded?'Show less':'Show all '+data.items.length}</button>`:''}
-    </div>`;
+    mount.innerHTML='';
   }catch(e){}
 }
 
@@ -302,7 +295,6 @@ const DASHBOARD_WIDGET_DEFAULTS=[
   {id:'greeting-card',label:'Greeting',visible:true},
   {id:'safe-spend-card',label:'Safe Spend',visible:true},
   {id:'salary-prompt-card',label:'Salary Prompt',visible:true},
-  {id:'spend-forecast-card',label:'Spend Forecast',visible:true},
   {id:'upcoming-bills-card',label:'Upcoming Bills',visible:true},
   {id:'alerts-insights-card',label:'Alerts & Insights',visible:true},
   {id:'money-flow-card',label:'Money Flow',visible:true},

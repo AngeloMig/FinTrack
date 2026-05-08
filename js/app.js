@@ -333,6 +333,41 @@ function renderCashflowNotification(){
   }).join('');
 }
 
+function getUnpaidRecurringDueSoon(limit=5){
+  if(alertSettings.recurringDueSoon===false)return[];
+  return recurring
+    .map(item=>({item,status:recurringStatus(item)}))
+    .filter(({status})=>status.state!=='paid')
+    .sort((a,b)=>a.status.days-b.status.days)
+    .slice(0,limit);
+}
+
+function renderDueSoonNotification(){
+  const wrap=document.getElementById('notif-due-soon');
+  const section=document.getElementById('notif-due-section');
+  if(!wrap)return;
+  const items=getUnpaidRecurringDueSoon(5);
+  if(section)section.style.display=items.length?'':'none';
+  if(!items.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=items.map(({item,status})=>{
+    const icon=item.type==='transfer'?'↔':item.type==='bill'?'🧾':'💵';
+    const amountLabel=item.type==='income'?`+${fmtShort(item.amount)}`:fmtShort(item.amount);
+    const btnLabel=item.type==='transfer'?'Run':item.type==='income'?'Receive':'Pay';
+    const amountClass=item.type==='income'?'income':item.type==='transfer'?'projected':'bill';
+    return`<div class="notif-cf-item notif-due-item">
+      <div class="notif-cf-icon">${icon}</div>
+      <div class="notif-cf-main">
+        <div class="notif-cf-name">${esc(item.name)}</div>
+        <div class="notif-cf-meta" style="color:${status.color}">${esc(status.label)} • ${esc(amountLabel)}</div>
+      </div>
+      <div class="notif-due-actions">
+        <div class="notif-cf-amount ${amountClass}">${esc(amountLabel)}</div>
+        <button class="btn btn-sm btn-primary notif-pay-btn" onclick="markRecurringPaid(${item.id});toggleNotifications()">${btnLabel}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderCashflowTimeline(){
   const wrap=document.getElementById('cashflow-timeline');
   const card=document.getElementById('cashflow-timeline-card');
@@ -418,18 +453,13 @@ function getSpendForecastData(){
   return{items,daysElapsed,daysInMonth};
 }
 function toggleForecastExpand(){_forecastExpanded=!_forecastExpanded;renderSpendForecastCard();}
+var _incomeHistoryExpanded=false;
+function toggleIncomeHistoryExpand(){_incomeHistoryExpanded=!_incomeHistoryExpanded;render();}
 function renderSpendForecastCard(){
   try{
     const mount=document.getElementById('spend-forecast-card');
     if(!mount)return;
-    const data=getSpendForecastData();
-    if(!data||!data.items.length){mount.innerHTML='';return;}
-    const show=_forecastExpanded?data.items:data.items.slice(0,3);
-    mount.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">📈 Spend Forecast</span><span class="card-badge" style="background:var(--red-soft,#fee2e2);color:var(--red)">${data.items.length} at risk</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Based on ${data.daysElapsed}/${data.daysInMonth} days elapsed — projected end-of-month</div>
-      ${show.map(item=>`<div class="focus-item"><div class="focus-top"><div><div class="focus-name">${item.icon} ${esc(item.name)}</div><div class="focus-meta">${fmt(item.spent)} spent → ${fmt(item.projected)} projected · ${fmt(item.overAmt)} over</div></div><span class="focus-tag risk">${item.overPct}% over</span></div></div>`).join('')}
-      ${data.items.length>3?`<button class="btn btn-ghost btn-sm" onclick="toggleForecastExpand()" style="margin-top:8px">${_forecastExpanded?'Show less':'Show all '+data.items.length}</button>`:''}
-    </div>`;
+    mount.innerHTML='';
   }catch(e){}
 }
 function getMonthEntries(monthKey=filterMonth){
@@ -2444,7 +2474,7 @@ function getDebtRealityAlertData(){
   const savingsBudget=Math.round(Number(salary||0)*(Number(budgetStrategy.savingsPct||0)/100));
   return{borrowedThisMonth,debtModeActive,debtTarget,recommendedDebtTarget,savingsBudget};
 }
-function getSmartAlerts(ac,catTotals,totalIncome,remaining,monthTotal,daysLeft){const alerts=[];const threshold=alertSettings.budgetThreshold||80;ac.filter(c=>c.group!=='savings'&&(budgets[c.name]||0)>0).forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=spent/budget*100;if(pct>=100)alerts.push({type:'critical',icon:'🚨',title:`${c.name} is over budget`,detail:`Spent ${fmtShort(spent)} of ${fmtShort(budget)} (${Math.round(pct)}%)`});else if(pct>=threshold)alerts.push({type:'warn',icon:'⚠️',title:`${c.name} is near limit`,detail:`Spent ${Math.round(pct)}% of budget · ${fmtShort(Math.max(budget-spent,0))} left`})});if(alertSettings.overspendForecast){const dayOfMonth=now.getDate();const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(dayOfMonth>=5&&dayOfMonth<daysInMonth){const projected=(monthTotal/dayOfMonth)*daysInMonth;if(projected>totalIncome)alerts.push({type:'critical',icon:'📉',title:'On track to overspend this month',detail:`Projected spend ${fmtShort(projected)} vs income ${fmtShort(totalIncome)}`});else if(projected>totalIncome*0.9)alerts.push({type:'warn',icon:'📅',title:'Month-end cash will be tight',detail:`Projected remaining ${fmtShort(totalIncome-projected)} if spending continues`})}}if(alertSettings.lowBalanceAlerts){if(remaining<0)alerts.push({type:'critical',icon:'🧯',title:'You are in the red',detail:`Current remaining balance is ${fmtShort(remaining)}`});else if(daysLeft>0&&remaining/Math.max(daysLeft,1)<200)alerts.push({type:'warn',icon:'💸',title:'Daily budget is very low',detail:`Only ${fmtShort(remaining/Math.max(daysLeft,1))} per day left this month`})}if(alertSettings.recurringDueSoon){recurring.forEach(r=>{const s=recurringStatus(r);if(s.state==='due')alerts.push({type:'warn',icon:r.type==='bill'?'🧾':'💵',title:`${r.name} is due today`,detail:`${r.type==='bill'?'Bill':'Income'} · ${fmtShort(r.amount)}`});else if(s.state==='upcoming'&&s.days<=3)alerts.push({type:'info',icon:r.type==='bill'?'🗓️':'💰',title:`${r.name} due soon`,detail:`In ${s.days} day${s.days!==1?'s':''} · ${fmtShort(r.amount)}`});else if(s.state==='overdue')alerts.push({type:'critical',icon:'⏰',title:`${r.name} is overdue`,detail:`Past due by ${Math.abs(s.days)} day${Math.abs(s.days)!==1?'s':''}`})})}if(alertSettings.spikeAlerts){const lastMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);const lastMonthKey=`${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;const lastMonthTotals={};entries.filter(e=>e.date.startsWith(lastMonthKey)&&!e.isDebtPayment&&!e.isGoalContribution&&e.category!=='Transfer Fees').forEach(e=>{lastMonthTotals[e.category]=(lastMonthTotals[e.category]||0)+e.amount});ac.filter(c=>c.group!=='savings').forEach(c=>{const current=catTotals[c.name]||0;const prev=lastMonthTotals[c.name]||0;if(prev>=500&&current>prev*1.5)alerts.push({type:'info',icon:'📈',title:`${c.name} spending spiked`,detail:`${fmtShort(current)} this month vs ${fmtShort(prev)} last month`})})}if(alertSettings.badRealityAlerts!==false){const debtReality=getDebtRealityAlertData();if(debtReality.debtTarget<debtReality.recommendedDebtTarget&&debtReality.recommendedDebtTarget>0)alerts.push({type:'critical',icon:'🎯',title:'Debt payoff budget this month is below target',detail:`Debt attack is ${fmtShort(debtReality.debtTarget)} vs target ${fmtShort(debtReality.recommendedDebtTarget)}`});if(debtReality.debtModeActive&&debtReality.borrowedThisMonth.length)alerts.push({type:'critical',icon:'🧨',title:'New borrowing recorded while debt mode is active',detail:`${debtReality.borrowedThisMonth.length} borrowed-money record${debtReality.borrowedThisMonth.length===1?'':'s'} logged this month`});if(debtReality.savingsBudget>debtReality.debtTarget&&debtReality.debtTarget>0)alerts.push({type:'warn',icon:'⚖️',title:'Savings allocation is higher than debt allocation',detail:`Savings ${fmtShort(debtReality.savingsBudget)} vs debt attack ${fmtShort(debtReality.debtTarget)}`});if(debtReality.borrowedThisMonth.length)alerts.push({type:'warn',icon:'💳',title:'Loan proceeds were recorded as income',detail:`${fmtShort(debtReality.borrowedThisMonth.reduce((sum,item)=>sum+Number(item.amount||0),0))} of borrowed money was logged under income sources`})}const seen=new Set();return alerts.filter(a=>{const key=a.title+'|'+a.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,6)}
+function getSmartAlerts(ac,catTotals,totalIncome,remaining,monthTotal,daysLeft){const alerts=[];const threshold=alertSettings.budgetThreshold||80;ac.filter(c=>c.group!=='savings'&&(budgets[c.name]||0)>0).forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=spent/budget*100;if(pct>=100)alerts.push({type:'critical',icon:'🚨',title:`${c.name} is over budget`,detail:`Spent ${fmtShort(spent)} of ${fmtShort(budget)} (${Math.round(pct)}%)`});else if(pct>=threshold)alerts.push({type:'warn',icon:'⚠️',title:`${c.name} is near limit`,detail:`Spent ${Math.round(pct)}% of budget · ${fmtShort(Math.max(budget-spent,0))} left`})});if(alertSettings.lowBalanceAlerts){if(remaining<0)alerts.push({type:'critical',icon:'🧯',title:'You are in the red',detail:`Current remaining balance is ${fmtShort(remaining)}`});else if(daysLeft>0&&remaining/Math.max(daysLeft,1)<200)alerts.push({type:'warn',icon:'💸',title:'Daily budget is very low',detail:`Only ${fmtShort(remaining/Math.max(daysLeft,1))} per day left this month`})}if(alertSettings.spikeAlerts){const lastMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);const lastMonthKey=`${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;const lastMonthTotals={};entries.filter(e=>e.date.startsWith(lastMonthKey)&&!e.isDebtPayment&&!e.isGoalContribution&&e.category!=='Transfer Fees').forEach(e=>{lastMonthTotals[e.category]=(lastMonthTotals[e.category]||0)+e.amount});ac.filter(c=>c.group!=='savings').forEach(c=>{const current=catTotals[c.name]||0;const prev=lastMonthTotals[c.name]||0;if(prev>=500&&current>prev*1.5)alerts.push({type:'info',icon:'📈',title:`${c.name} spending spiked`,detail:`${fmtShort(current)} this month vs ${fmtShort(prev)} last month`})})}if(alertSettings.badRealityAlerts!==false){const debtReality=getDebtRealityAlertData();if(debtReality.debtTarget<debtReality.recommendedDebtTarget&&debtReality.recommendedDebtTarget>0)alerts.push({type:'critical',icon:'🎯',title:'Debt payoff budget this month is below target',detail:`Debt attack is ${fmtShort(debtReality.debtTarget)} vs target ${fmtShort(debtReality.recommendedDebtTarget)}`});if(debtReality.debtModeActive&&debtReality.borrowedThisMonth.length)alerts.push({type:'critical',icon:'🧨',title:'New borrowing recorded while debt mode is active',detail:`${debtReality.borrowedThisMonth.length} borrowed-money record${debtReality.borrowedThisMonth.length===1?'':'s'} logged this month`});if(debtReality.savingsBudget>debtReality.debtTarget&&debtReality.debtTarget>0)alerts.push({type:'warn',icon:'⚖️',title:'Savings allocation is higher than debt allocation',detail:`Savings ${fmtShort(debtReality.savingsBudget)} vs debt attack ${fmtShort(debtReality.debtTarget)}`});if(debtReality.borrowedThisMonth.length)alerts.push({type:'warn',icon:'💳',title:'Loan proceeds were recorded as income',detail:`${fmtShort(debtReality.borrowedThisMonth.reduce((sum,item)=>sum+Number(item.amount||0),0))} of borrowed money was logged under income sources`})}const seen=new Set();return alerts.filter(a=>{const key=a.title+'|'+a.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,6)}
 
 /* Forecast */
 function getProjectedRecurringImpact(){const monthKey=currentMonthKey();const today=new Date(todayStr+'T00:00:00');let expenses=0,income=0;recurring.forEach(r=>{if(r.lastPaid===monthKey)return;const due=recurringDueDate(r,monthKey);if(due>=today){if(r.type==='bill')expenses+=Number(r.amount||0);else income+=Number(r.amount||0)}});return{expenses,income}}
@@ -2518,7 +2548,7 @@ function toggleNotifications(){
   }
 }
 function markNotificationsSeen(){notificationsSeenAt=Date.now();notifSeenKey=_lastNotifKey;saveData();const badge=document.getElementById('notif-badge');if(badge)badge.style.display='none'}
-function getNotificationItems(ac,catTotals,forecast){const items=[];const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;(recurring||[]).forEach(r=>{const paid=r.lastPaid===monthKey;const daysLeft=r.day-now.getDate();if(r.type==='bill'&&!paid&&daysLeft<0)items.push({type:'danger',icon:'🚨',title:`${r.name} is overdue`,detail:`Due on day ${r.day}.`,ts:5});else if(r.type==='bill'&&!paid&&daysLeft===0)items.push({type:'warning',icon:'🧾',title:`${r.name} is due today`,detail:`Amount ${fmtShort(r.amount)}.`,ts:4});else if(r.type==='bill'&&!paid&&daysLeft<=2&&daysLeft>=1)items.push({type:'info',icon:'📅',title:`${r.name} due soon`,detail:`Due in ${daysLeft} day${daysLeft!==1?'s':''}.`,ts:3})});if(forecast&&forecast.projectedBalance<0)items.push({type:'danger',icon:'📉',title:'Negative month-end forecast',detail:`Projected ${fmtShort(forecast.projectedBalance)} at month end.`,ts:5});ac.filter(c=>c.group!=='savings').forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;if(!budget)return;if(spent>budget)items.push({type:'warning',icon:'⚠️',title:`${c.name} over budget`,detail:`Over by ${fmtShort(spent-budget)}.`,ts:4})});const unique=[],seen=new Set();items.sort((a,b)=>b.ts-a.ts);for(const item of items){const key=item.title+'|'+item.detail;if(!seen.has(key)){seen.add(key);unique.push(item)}}return unique.slice(0,10)}
+function getNotificationItems(ac,catTotals,forecast){const items=[];ac.filter(c=>c.group!=='savings').forEach(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;if(!budget)return;if(spent>budget)items.push({type:'warning',icon:'⚠️',title:`${c.name} over budget`,detail:`Over by ${fmtShort(spent-budget)}.`,ts:4})});const unique=[],seen=new Set();items.sort((a,b)=>b.ts-a.ts);for(const item of items){const key=item.title+'|'+item.detail;if(!seen.has(key)){seen.add(key);unique.push(item)}}return unique.slice(0,10)}
 
 /* CRUD */
 
@@ -3414,8 +3444,8 @@ function renderHistoryAnalytics(expenseData,incomeData){
   const el=document.getElementById('history-analytics');if(!el)return;
   // Update view toggle button states
   const btnList=document.getElementById('hist-view-list');const btnAnalytics=document.getElementById('hist-view-analytics');
-  if(btnList){btnList.style.background=historyViewMode==='list'?'var(--accent)':'';btnList.style.color=historyViewMode==='list'?'#fff':'';}
-  if(btnAnalytics){btnAnalytics.style.background=historyViewMode==='analytics'?'var(--accent)':'';btnAnalytics.style.color=historyViewMode==='analytics'?'#fff':'';}
+  if(btnList)btnList.classList.toggle('hvt-active',historyViewMode==='list');
+  if(btnAnalytics)btnAnalytics.classList.toggle('hvt-active',historyViewMode==='analytics');
   if(historyViewMode!=='analytics'){el.style.display='none';document.getElementById('history-content').style.display='';const incCard=document.getElementById('income-history')?.closest('.card');if(incCard)incCard.style.display='';return;}
   el.style.display='block';
   document.getElementById('history-content').style.display='none';
@@ -4938,6 +4968,7 @@ function renderGettingStartedCard(){
 function render(){
   try{ ensureRolloversForMonth(); }catch(e){}
   try{ renderCashflowNotification(); }catch(e){}
+  try{ renderDueSoonNotification(); }catch(e){}
   try{ renderGettingStartedCard(); }catch(e){}
   try{ renderSafeSpendCard(); }catch(e){}
   try{ renderAnalyticsSummary(); }catch(e){}
@@ -5132,14 +5163,9 @@ function render(){
   const debtPayoffData=getDebtPayoffData(remaining,forecast,needsB);
   renderDebtFocusCard(debtPayoffData);
 
-  // Upcoming bills (only unpaid ones)
-  const unpaidRecurring=recurring.map(r=>({item:r,status:recurringStatus(r)})).filter(({status})=>status.state!=='paid').sort((a,b)=>a.status.days-b.status.days).slice(0,3);
+  // Upcoming bills live in the notification bell to keep the dashboard quieter.
   const ubCard=document.getElementById('upcoming-bills-card');
-  if(unpaidRecurring.length){
-    ubCard.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Due Soon ${tooltipMarkup('tip-upcoming')}</span><span style="font-size:12px;color:var(--accent);cursor:pointer;font-weight:600" onclick="showTab('more')">All →</span></div>${helpMode?'<div class="help-inline">Upcoming unpaid recurring items.</div>':''}<div class="tx-list">${unpaidRecurring.map(({item,status})=>{const icon=item.type==='transfer'?'↔':item.type==='bill'?'🧾':'💵';const cls=item.type==='transfer'?'cat-savings':item.type==='bill'?'cat-electric':'cat-income';const btnLabel=item.type==='transfer'?'Run':'Pay';return`<div class="tx-item"><div class="tx-icon ${cls}" style="width:36px;height:36px">${icon}</div><div class="tx-info"><div class="tx-name">${esc(item.name)}</div><div class="tx-meta" style="color:${status.color}">${status.label} · ${fmtShort(item.amount)}</div></div><button class="btn btn-sm btn-primary" style="padding:6px 10px" onclick="markRecurringPaid(${item.id})">${btnLabel}</button></div>`}).join('')}</div></div>`;
-  }else{
-    ubCard.innerHTML='';
-  }
+  if(ubCard)ubCard.innerHTML='';
 
   // Combined Alerts & Insights (tabbed)
   const smartAlerts=getSmartAlerts(ac,catTotals,totalIncome,remaining,monthTotal,daysLeft);
@@ -5176,13 +5202,15 @@ function render(){
   setTooltipContent('tip-recent','recent');
   // Notifications
   const notificationItems=getNotificationItems(ac,catTotals,forecast);
-  _lastNotifKey=notificationItems.map(n=>n.title+'|'+n.detail).join('§');
+  const dueSoonItems=getUnpaidRecurringDueSoon(5);
+  _lastNotifKey=[...notificationItems.map(n=>n.title+'|'+n.detail),...dueSoonItems.map(({item,status})=>item.id+'|'+status.label+'|'+item.amount)].join('§');
   const notifList=document.getElementById('notif-list');
   if(notifList)notifList.innerHTML=notificationItems.length?notificationItems.map(n=>`<div class="notif-item ${n.type}"><div class="notif-item-icon">${n.icon}</div><div class="notif-item-body"><div class="notif-item-title">${esc(n.title)}</div><div class="notif-item-detail">${esc(n.detail)}</div></div></div>`).join(''):'<div class="notif-empty">All clear — no new alerts.</div>';
-  const notifHc=document.getElementById('notif-head-count');if(notifHc)notifHc.textContent=notificationItems.length?String(notificationItems.length):'';
+  const notifCount=notificationItems.length+dueSoonItems.length;
+  const notifHc=document.getElementById('notif-head-count');if(notifHc)notifHc.textContent=notifCount?String(notifCount):'';
   const notifBadge=document.getElementById('notif-badge');
-  const _hasNew=notificationItems.length>0&&_lastNotifKey!==notifSeenKey;
-  if(notifBadge){if(_hasNew){notifBadge.textContent=notificationItems.length>9?'9+':String(notificationItems.length);notifBadge.style.display='flex'}else notifBadge.style.display='none'}
+  const _hasNew=notifCount>0&&_lastNotifKey!==notifSeenKey;
+  if(notifBadge){if(_hasNew){notifBadge.textContent=notifCount>9?'9+':String(notifCount);notifBadge.style.display='flex'}else notifBadge.style.display='none'}
 
   // === ANALYTICS (inside Show More) ===
   document.getElementById('stats-grid').innerHTML=[
@@ -5241,7 +5269,7 @@ function render(){
   const ihEl=document.getElementById('income-history');
   const incomeHistoryCard=ihEl?.closest('.card');if(incomeHistoryCard)incomeHistoryCard.style.display=historyViewMode==='analytics'?'none':(historyActiveLabels.length?'none':'');
   if(!incomes.length)ihEl.innerHTML='<div class="empty"><div class="empty-icon">💵</div><div class="empty-text">No extra income yet</div></div>';
-  else{const incomeOnly=[...incomes];sortHistoryItems(incomeOnly,'newest');ihEl.innerHTML=`<div class="tx-list">${incomeOnly.slice(0,20).map(i=>{const clickAction=i.isSalaryDeposit?'':` onclick="openIncomeEdit(${i.id})"`;return`<div class="tx-item"${clickAction}><div class="tx-icon cat-income">💵</div><div class="tx-info"><div class="tx-name">${esc(i.source)}</div><div class="tx-meta">${formatDateTime(i)} · Received in ${esc(getAccountInfo(i.account||'cash').name)}${i.note?' · '+esc(i.note):''}</div></div><div class="tx-amount" style="color:var(--green)">+${fmt(i.amount)}</div><button class="btn-icon tx-delete" onclick="event.stopPropagation();deleteIncome(${i.id})" style="border:none;color:var(--red);font-size:12px">✕</button></div>`}).join('')}</div>`}
+  else{const incomeOnly=[...incomes];sortHistoryItems(incomeOnly,'newest');const _ihLimit=5;const _ihExp=(typeof _incomeHistoryExpanded!=='undefined'&&_incomeHistoryExpanded);const _ihShown=_ihExp?incomeOnly:incomeOnly.slice(0,_ihLimit);const _ihToggleBtn=incomeOnly.length>_ihLimit?`<button class="btn btn-ghost btn-sm" onclick="toggleIncomeHistoryExpand()" style="margin-top:8px;width:100%;justify-content:center">${_ihExp?'Show less':'Show all '+incomeOnly.length}</button>`:'';ihEl.innerHTML=`<div class="tx-list">${_ihShown.map(i=>{const clickAction=i.isSalaryDeposit?'':` onclick="openIncomeEdit(${i.id})"`;return`<div class="tx-item"${clickAction}><div class="tx-icon cat-income">💵</div><div class="tx-info"><div class="tx-name">${esc(i.source)}</div><div class="tx-meta">${formatDateTime(i)} · Received in ${esc(getAccountInfo(i.account||'cash').name)}${i.note?' · '+esc(i.note):''}</div></div><div class="tx-amount" style="color:var(--green)">+${fmt(i.amount)}</div><button class="btn-icon tx-delete" onclick="event.stopPropagation();deleteIncome(${i.id})" style="border:none;color:var(--red);font-size:12px">✕</button></div>`}).join('')}</div>${_ihToggleBtn}`}
 
   // === GOALS ===
   document.getElementById('health-score').innerHTML=buildHealthScoreHTML(hs);
@@ -5276,7 +5304,10 @@ function render(){
       const lateMoStr=etaDate&&g.targetDate&&etaDate>new Date(g.targetDate)?Math.round((etaDate-new Date(g.targetDate))/(864e5*30))+' mo late':'';
       const etaLine=etaStr?'<div class="goal-eta-line">Est. completion: <strong>'+etaStr+'</strong>'+(lateMoStr?' · <span class="goal-eta-late">'+lateMoStr+'</span>':'')+'</div>':'';
       const lastContrib=summary.count&&summary.latest?'<div class="goal-last-line">Last: '+esc(formatDateTime(summary.latest))+' · <strong>'+fmt(summary.latest.amount)+'</strong>'+(summary.count>1?' · '+summary.count+' contributions':'')+'</div>':'';
-      return`<div class="goal-card" style="--goal-color:${barC}"><div class="goal-bg-icon">${goalIcon}</div><div class="goal-top"><div class="goal-top-left"><div class="goal-name">${goalIcon} ${esc(g.name)}</div>${tdFmt?'<div class="goal-target-date">📅 by '+tdFmt+'</div>':''}<div class="goal-badge-row"><span class="goal-status-badge" style="color:${badgeColor};background:${badgeBg}">${badgeText}</span>${velocityChip}</div></div><div class="goal-pct">${pct.toFixed(0)}%</div></div><div class="goal-bar-wrap"><div class="goal-bar-track"><div class="goal-bar-fill" style="width:${pct}%;background:${barC}"></div><div class="goal-bar-tick" style="left:25%"></div><div class="goal-bar-tick" style="left:50%"></div><div class="goal-bar-tick" style="left:75%"></div></div><div class="goal-bar-labels"><span>${fmt(g.current)}</span><span>${fmt(g.target)}</span></div></div><div class="goal-stats"><div class="goal-stat goal-stat-saved"><div class="goal-stat-label">Saved</div><div class="goal-stat-val" style="color:var(--green)">${fmtShort(g.current||0)}</div></div><div class="goal-stat goal-stat-togo"><div class="goal-stat-label">To Go</div><div class="goal-stat-val">${fmtShort(left)}</div></div><div class="goal-stat goal-stat-monthly"><div class="goal-stat-label">Monthly</div><div class="goal-stat-val" style="color:${g.monthly>0?'var(--accent)':'var(--text3)'}">${g.monthly>0?fmtShort(g.monthly):'—'}</div></div></div>${etaLine}${lastContrib}<div class="goal-actions"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openGoalContribution(${g.id})">${addLabel}</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalHistory(${g.id})">History</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalEdit(${g.id})">Edit</button></div></div>`;
+      const _ringR=24,_ringStroke=6,_ringCirc=+(2*Math.PI*_ringR).toFixed(2),_ringOffset=+(_ringCirc*(1-pct/100)).toFixed(2);
+      const _ringColor=pct>=100?'var(--green)':barC;
+      const ringHtml=`<div class="goal-ring-wrap"><svg width="60" height="60" viewBox="0 0 60 60" style="transform:rotate(-90deg)"><circle cx="30" cy="30" r="${_ringR}" fill="none" stroke="var(--border)" stroke-width="${_ringStroke}"/><circle cx="30" cy="30" r="${_ringR}" fill="none" stroke="${_ringColor}" stroke-width="${_ringStroke}" stroke-linecap="round" stroke-dasharray="${_ringCirc}" stroke-dashoffset="${_ringOffset}" style="transition:stroke-dashoffset .5s ease"/></svg><div class="goal-ring-pct" style="color:${_ringColor}">${pct.toFixed(0)}%</div></div>`;
+      return`<div class="goal-card" style="--goal-color:${barC}"><div class="goal-top"><div class="goal-top-left"><div class="goal-name-row"><div class="goal-icon-sq">${goalIcon}</div><div class="goal-name-col"><div class="goal-name">${esc(g.name)}</div>${tdFmt?'<div class="goal-target-date">📅 by '+tdFmt+'</div>':''}<div class="goal-badge-row"><span class="goal-status-badge" style="color:${badgeColor};background:${badgeBg}">${badgeText}</span>${velocityChip}</div></div></div></div>${ringHtml}</div><div class="goal-bar-wrap"><div class="goal-bar-labels" style="margin-bottom:4px"><span>${fmt(g.current)}</span><span>${fmt(g.target)}</span></div><div class="goal-bar-track"><div class="goal-bar-fill" style="width:${pct}%;background:${barC}"></div></div></div><div class="goal-stats"><div class="goal-stat goal-stat-saved"><div class="goal-stat-label">SAVED</div><div class="goal-stat-val" style="color:var(--green)">${fmtShort(g.current||0)}</div></div><div class="goal-stat goal-stat-togo"><div class="goal-stat-label">TO GO</div><div class="goal-stat-val">${fmtShort(left)}</div></div><div class="goal-stat goal-stat-monthly"><div class="goal-stat-label">MONTHLY</div><div class="goal-stat-val" style="color:${g.monthly>0?'var(--accent)':'var(--text3)'}">${g.monthly>0?fmtShort(g.monthly):'—'}</div></div></div>${etaLine}${lastContrib}<div class="goal-actions"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openGoalContribution(${g.id})">${addLabel}</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalHistory(${g.id})">🕐 History</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openGoalEdit(${g.id})">✏️ Edit</button></div></div>`;
     }).join('');
   })();
   try{ renderGoalsTimeline(); }catch(e){}
@@ -5363,28 +5394,29 @@ function render(){
     const paidPct=originalTotal>0?Math.min(totalPaid/originalTotal*100,100):0;
     const borderColor=paidOff?'var(--green)':isPaid?'var(--amber)':'var(--red)';
     const balanceColor=paidOff?'var(--green)':'var(--red)';
-    const progressBar=!paidOff&&originalTotal>0&&totalPaid>0?`<div class="debt-progress"><div class="debt-progress-head"><span>Progress</span><span>${Math.round(paidPct)}% paid</span></div><div class="debt-progress-track"><div class="debt-progress-fill" style="width:${paidPct}%"></div></div></div>`:paidOff?`<div class="debt-progress debt-progress-paid"><div class="debt-progress-track"><div class="debt-progress-fill" style="width:100%"></div></div></div>`:'';
+    const progressBar=paidOff
+      ?`<div class="debt-progress-v2"><div class="debt-progress-labels"><span class="debt-pl-remaining" style="color:var(--green)">Fully paid off 🎉</span><span class="debt-pl-paid">${fmt(totalPaid)} total</span></div><div class="debt-progress-track-v2"><div class="debt-progress-fill-v2" style="width:100%"></div></div></div>`
+      :originalTotal>0&&totalPaid>0
+        ?`<div class="debt-progress-v2"><div class="debt-progress-labels"><span class="debt-pl-remaining">${fmt(remaining)} left</span><span class="debt-pl-paid">${fmt(totalPaid)} paid · ${Math.round(paidPct)}%</span></div><div class="debt-progress-track-v2"><div class="debt-progress-fill-v2" style="width:${paidPct}%"></div></div><div class="debt-pl-subtext">${Math.round(paidPct)}% of total paid</div></div>`
+        :'';
 
     const summaryBody=paymentSummary.count
-      ?`<div class="debt-summary-body">${paidOff&&clearedDate?`<div class="debt-summary-row"><span>Paid off on</span><strong>${esc(formatDateTime({date:clearedDate}))}</strong></div>`:''}<div class="debt-summary-row"><span>Last payment</span><strong>${esc(formatDateTime(latest))} · ${fmt(latest.amount)}${getDebtPaymentFeeMeta(latest)}</strong></div><div class="debt-summary-row"><span>Total paid</span><strong>${fmt(paymentSummary.total)}</strong></div><div class="debt-summary-row"><span>History</span><strong>${paymentSummary.count} payment${paymentSummary.count!==1?'s':''}</strong></div></div>`
-      :`<div class="debt-summary-empty">${paidOff?'No payment history saved':'No payments yet'}</div>`;
+      ?`<div class="debt-pay-card"><div class="debt-pay-card-head"><div class="debt-pay-card-icon">🕐</div><span class="debt-pay-label">Last payment</span><span class="debt-pay-badge">${paymentSummary.count} payment${paymentSummary.count!==1?'s':''}</span></div><div class="debt-pay-card-body"><span class="debt-pay-val">${esc(formatDateTime(latest))} · ${fmt(latest.amount)}${getDebtPaymentFeeMeta(latest)}</span><span class="debt-pay-chevron">›</span></div></div>`
+      :`<div class="debt-no-payments">${paidOff?'No payment history saved':'No payments logged yet — tap Log Payment to start'}</div>`;
 
-    const _mr=(extra,label,val)=>`<div class="debt-metric-row${extra}"><span class="debt-metric-label">${label}</span><span class="debt-metric-value">${val}</span></div>`;
-    const metricCards=paidOff
-      ?[
-        _mr('','Status',clearedDate?`Paid off ${esc(formatDateTime({date:clearedDate}))}`:'Balance cleared'),
-        _mr(d.lastPaidAmount?'':' debt-metric-empty','Last payment',d.lastPaidAmount?fmt(d.lastPaidAmount):'Not saved')
-      ]
-      :[
-        _mr(plannedPayment?'':' debt-metric-warn','Planned',plannedPayment?`${fmt(plannedPayment)}/mo`:'No plan yet'),
-        _mr(minDue?'':' debt-metric-empty','Min due',minDue?fmt(minDue):'Not set'),
-        _mr(d.due?'':' debt-metric-empty','Due date',d.due?esc(d.due):'Not set'),
-        _mr(plannedPayment?'':' debt-metric-warn','Payoff pace',plannedPayment>0?`~${mo} mo`:'Need payment plan'),
-        _mr(d.interest?'':' debt-metric-empty','APR',d.interest?`${esc(String(d.interest))}%`:'0% / not set'),
-        _mr(d.lenderType?'':' debt-metric-empty','Lender',d.lenderType?esc(d.lenderType):'Not set'),
-        _mr(d.lateFeeRisk==='High'?' debt-metric-danger':d.lateFeeRisk==='Medium'?' debt-metric-warn':d.lateFeeRisk?'':' debt-metric-empty','Late fee risk',d.lateFeeRisk?esc(d.lateFeeRisk):'Not set'),
-        _mr(totalPaid?'':' debt-metric-empty','Paid so far',totalPaid>0?fmt(totalPaid):'No payments yet')
-      ];
+    // KPI grid: 3 most critical numbers
+    const _kpi=(val,label,cls='',icon='',iBg='var(--surface2)')=>`<div class="debt-kpi">${icon?`<div class="debt-kpi-icon" style="background:${iBg}">${icon}</div>`:''}<div class="debt-kpi-value ${cls}">${val}</div><div class="debt-kpi-label">${label}</div></div>`;
+    const kpiGrid=paidOff
+      ?`<div class="debt-kpi-grid">${_kpi(fmt(totalPaid),'Total paid','good','💰','rgba(16,185,129,.14)')}${_kpi(clearedDate?esc(formatDateTime({date:clearedDate})):'—','Cleared on','','📅','rgba(99,102,241,.14)')}${_kpi(paymentSummary.count||0,'Payments','','✅','rgba(139,92,246,.14)')}</div>`
+      :`<div class="debt-kpi-grid">${_kpi(minDue?fmt(minDue):'Not set','Min due',minDue?'':'muted','📅','rgba(99,102,241,.14)')}${_kpi(d.due?esc(d.due):'Not set','Due date',d.due?'':'muted','📅','rgba(139,92,246,.14)')}${_kpi(plannedPayment?`${fmt(plannedPayment)}/mo`:'No plan','Monthly plan',plannedPayment?'good':'warn','📅','rgba(245,158,11,.14)')}</div>`;
+
+    // Detail card: secondary info
+    const riskChipCls=d.lateFeeRisk==='High'?'danger':d.lateFeeRisk==='Medium'?'warn':'';
+    const riskIconBg=d.lateFeeRisk==='High'?'rgba(239,68,68,.12)':d.lateFeeRisk==='Medium'?'rgba(245,158,11,.12)':'rgba(16,185,129,.12)';
+    const riskColor=d.lateFeeRisk==='High'?'var(--red)':d.lateFeeRisk==='Medium'?'var(--amber)':'var(--text2)';
+    const detailCard=paidOff?'':`<div class="debt-detail-card"><div class="debt-detail-item"><div class="debt-detail-icon" style="background:rgba(16,185,129,.12)">🛡️</div><span class="debt-detail-text">APR: ${d.interest?esc(String(d.interest))+'%':'0% / not set'}</span></div><div class="debt-detail-sep"></div><div class="debt-detail-item"><div class="debt-detail-icon" style="background:rgba(16,185,129,.12)">👤</div><span class="debt-detail-text">Lender: ${d.lenderType?esc(d.lenderType):'Unknown'}</span></div>${d.lateFeeRisk?`<div class="debt-detail-sep"></div><div class="debt-detail-item"><div class="debt-detail-icon" style="background:${riskIconBg}">⚠️</div><span class="debt-detail-text" style="color:${riskColor}">Risk: ${esc(d.lateFeeRisk)}</span></div>`:''}</div>`;
+
+    const metricCards=[];
 
     const _proj=!paidOff&&remaining>0?getDebtPayoffProjection(remaining,Number(d.payment||0),Number(d.interest||0)):null;
     const payoffSection=_proj&&_proj.isViable&&_proj.months>0?(()=>{
@@ -5395,19 +5427,47 @@ function render(){
     })():'';
 
     const actionsHtml=paidOff
-      ?`<div class="debt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtEdit(${d.id})">Edit</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtHistory(${d.id})">View History</button></div>`
-      :`<div class="debt-actions"><button class="btn btn-sm btn-primary debt-action-log" onclick="event.stopPropagation();openDebtPayment(${d.id})">Log Payment</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtEdit(${d.id})">Edit</button><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openDebtHistory(${d.id})">View History</button></div>`;
+      ?`<div class="debt-actions-v2"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDebtEdit(${d.id})">✏️ Edit</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDebtHistory(${d.id})">🕐 History</button></div>`
+      :`<div class="debt-actions-v2"><button class="btn btn-primary debt-logpay-btn" onclick="event.stopPropagation();openDebtPayment(${d.id})">💳 Pay</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDebtEdit(${d.id})">✏️ Edit</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDebtHistory(${d.id})">🕐 History</button></div>`;
     const typeIcon=((t)=>t.includes('credit')?'💳':t.includes('loan')?'🏦':t.includes('friend')||t.includes('family')?'👤':'📋')((d.product||d.type||'').toLowerCase());
     const cardStatusClass=paidOff?'debt-card-cleared':isPaid?'debt-card-paid-month':'debt-card-active';
-    return`<div id="debt-card-${d.id}" class="debt-card debt-card-redesign ${cardStatusClass}" style="border-left:2px solid ${borderColor};opacity:${paidOff?'.7':'1'}"><div class="debt-card-toggle" onclick="this.closest('.debt-card').classList.toggle('open')"><div class="debt-card-icon-col"><span>${typeIcon}</span></div><div class="debt-card-title"><div class="debt-card-name-row"><span class="debt-card-name">${esc(d.name)}</span></div><div class="debt-card-meta-row"><span class="debt-card-type">${debtProduct}</span>${badges.join('')}</div></div><div class="debt-card-toggle-right"><div class="debt-card-balance"><div class="debt-card-amount" style="color:${balanceColor}">${fmt(remaining)}</div>${!paidOff&&totalPaid>0?`<div class="debt-card-subamount">${fmtShort(totalPaid)} paid</div>`:''}</div><div class="debt-card-chevron"></div></div></div>${paidPct>0?`<div class="debt-card-mini-bar"><div class="debt-card-mini-fill" style="width:${paidPct}%"></div></div>`:''}<div class="debt-card-body"><div class="debt-card-body-inner">${progressBar}${deadlineBanner}<div class="debt-metrics-list">${metricCards.join('')}</div>${payoffSection}${actionsHtml}<div class="debt-summary"><div class="debt-summary-title">Payment Summary</div>${summaryBody}</div></div></div></div>`;
+    const miniFillPct=paidOff?100:(paidPct>0?Math.max(paidPct,4):0);
+    const progressMeta=paidOff?'Fully paid':paidPct>0?`${Math.round(paidPct)}% cleared`:plannedPayment>0?`${fmtShort(plannedPayment)}/mo plan`:'Plan not set';
+    const statusText=paidOff?'Cleared':isPaid?'Paid this month':isTarget?'Focus':'Active';
+    const cardStyle=`--debt-accent:${borderColor};--debt-balance:${balanceColor};opacity:${paidOff?'.78':'1'}`;
+    return`<div id="debt-card-${d.id}" class="debt-card debt-card-redesign ${cardStatusClass}${isTarget?' debt-card-target':''}" style="${cardStyle}"><div class="debt-card-toggle" onclick="this.closest('.debt-card').classList.toggle('open')"><div class="debt-card-icon-col"><span>${typeIcon}</span></div><div class="debt-card-title"><div class="debt-card-name-row"><span class="debt-card-status-dot"></span><span class="debt-card-name">${esc(d.name)}</span></div><div class="debt-card-meta-row"><span class="debt-card-type">${debtProduct}</span>${badges.join('')}</div></div><div class="debt-card-toggle-right"><div class="debt-card-balance"><div class="debt-card-amount" style="color:${balanceColor}">${fmt(remaining)}</div><div class="debt-card-amount-label">${paidOff?'fully paid':'amount left'}</div></div><div class="debt-card-chevron"></div></div></div><div class="debt-card-mini-bar"><div class="debt-card-mini-fill" style="width:${miniFillPct}%"></div></div><div class="debt-card-progress-meta"><span>${progressMeta}</span><span>${statusText}</span></div><div class="debt-card-body"><div class="debt-card-body-inner">${progressBar}${deadlineBanner}${kpiGrid}${detailCard}${payoffSection}${actionsHtml}${summaryBody}</div></div></div>`;
   };
   if(debts.length){
-    const _dp=debtPayoffData;const _m=debtPayoffSettings.method||'snowball';const _chipStyle=(k)=>_m===k?'border-color:var(--accent);color:var(--accent);background:var(--accent-soft)':'';
-    const _recBanner=activeDebts.length&&!_dp.isOnRec?`<div style="padding:10px 12px;background:var(--amber-soft);border-radius:var(--radius-xs);border-left:3px solid var(--amber)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:3px">💡 Recommended: ${_dp.recMethod==='avalanche'?'Avalanche':_dp.recMethod==='snowball'?'Snowball':'Minimum Only'}</div><div style="font-size:12px;color:var(--text2);line-height:1.5">${_dp.recReason}</div></div><button class="btn btn-sm" style="font-size:11px;white-space:nowrap;background:var(--amber);color:#fff;border:none;flex-shrink:0" onclick="setDebtPayoffMethod('${_dp.recMethod}')">Switch</button></div></div>`:(activeDebts.length&&_dp.isOnRec?`<div style="padding:10px 12px;background:var(--green-soft);border-radius:var(--radius-xs)"><div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:2px">✓ Optimal strategy selected</div><div style="font-size:12px;color:var(--text2)">${_dp.recReason}</div></div>`:'');
-    const _actionPlan=activeDebts.length?(_dp.targetDebt?`<div style="padding:12px;background:var(--surface2);border-radius:var(--radius-xs)"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">This month's focus</div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px"><div><div style="font-size:14px;font-weight:800">${esc(_dp.targetDebt.name)}</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${_m==='avalanche'?`Highest APR${_dp.targetDebt.interest?` · ${_dp.targetDebt.interest}%`:''}`:_m==='snowball'?`Smallest balance`:'Target'} · ${fmtShort(Number(_dp.targetDebt.total||0))} remaining</div></div></div>${_dp.extraPayment>0?`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border)"><div style="font-size:12px;color:var(--text2)">Safe extra to add</div><div style="font-size:13px;font-weight:700;color:var(--accent)">+${fmtShort(_dp.extraPayment)}</div></div>`:''}<div style="display:flex;gap:6px;margin-top:4px">${_dp.targetMonthsWithExtra&&_dp.extraPayment>0?`<div style="flex:1;padding:8px;background:var(--accent-soft);border-radius:var(--radius-xs);text-align:center"><div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase">With extra</div><div style="font-size:15px;font-weight:800;color:var(--accent)">${_dp.targetMonthsWithExtra} mo</div></div>`:''}<div style="flex:1;padding:8px;background:var(--surface);border-radius:var(--radius-xs);text-align:center;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Min only</div><div style="font-size:15px;font-weight:800;color:var(--text2)">${_dp.targetMonthsMinOnly??'—'} mo</div></div></div></div>`:`<div style="padding:12px;background:var(--surface2);border-radius:var(--radius-xs);font-size:13px;color:var(--text2)">Pay minimums on all ${activeDebts.length} active debts.</div>`):'';
-    const _riskRow=_dp.riskFlags&&_dp.riskFlags.length?`<div style="padding:10px 12px;background:var(--red-soft);border-radius:var(--radius-xs);font-size:12px;color:var(--red);font-weight:600">⚠️ ${_dp.riskFlags[0]}</div>`:'';
-    document.getElementById('debt-summary').innerHTML=`<div style="display:grid;gap:10px;margin-bottom:14px"><div style="display:flex;gap:10px"><div style="flex:1;padding:12px;background:var(--red-soft);border-radius:var(--radius-xs);text-align:center"><div style="font-size:11px;color:var(--text3)">Total Owed</div><div style="font-size:18px;font-weight:800;color:var(--red)">${fmtShort(totalDebt)}</div></div><div style="flex:1;padding:12px;background:var(--surface2);border-radius:var(--radius-xs);text-align:center"><div style="font-size:11px;color:var(--text3)">Monthly Minimums</div><div style="font-size:18px;font-weight:800">${fmtShort(_dp.monthlyMinimum)}</div></div></div><div class="card" style="padding:14px;margin:0;display:grid;gap:12px"><div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Strategy</div><div class="quick-actions" style="margin-bottom:8px"><button class="quick-chip" style="${_chipStyle('minimum')}" onclick="setDebtPayoffMethod('minimum')">Minimum Only</button><button class="quick-chip" style="${_chipStyle('snowball')}" onclick="setDebtPayoffMethod('snowball')">Snowball</button><button class="quick-chip" style="${_chipStyle('avalanche')}" onclick="setDebtPayoffMethod('avalanche')">Avalanche</button></div><div style="font-size:12px;color:var(--text3)">${_dp.methodDesc}</div></div>${_recBanner}${_actionPlan}${_riskRow}</div></div>`;
-    const _debtGroupMeta={credit_card:{label:'Credit Cards',icon:'💳'},loan:{label:'Loans',icon:'🏦'},friend_family:{label:'Friend / Family',icon:'👤'},other:{label:'Other',icon:'📋'}};
+    const _dp=debtPayoffData;const _m=debtPayoffSettings.method||'snowball';
+    // === Aggregate stats ===
+    const _allPaid=[...activeDebts,...paidOffDebts].reduce((s,d)=>s+(getDebtPaymentSummary(d.id).total||0),0);
+    const _origTotal=totalDebt+_allPaid;
+    const _clearedPct=_origTotal>0?Math.min(_allPaid/_origTotal*100,100):0;
+    const _totalMonthly=activeDebts.reduce((s,d)=>s+(Number(d.payment)||Number(d.minDue)||0),0);
+    const _etaMonths=_totalMonthly>0&&totalDebt>0?Math.ceil(totalDebt/_totalMonthly):null;
+    const _etaDateStr=_etaMonths?(()=>{const dd=new Date();dd.setMonth(dd.getMonth()+_etaMonths);return dd.toLocaleDateString('en-PH',{month:'short',year:'numeric'});})():(activeDebts.length?'Set monthly':'Cleared');
+    const _isCleared=activeDebts.length===0&&paidOffDebts.length>0;
+    // === Hero assets-card ===
+    const _heroCard=`<div class="dhero-card ${_isCleared?'dhero-cleared':''}"><div class="dhero-deco dhero-deco-1"></div><div class="dhero-deco dhero-deco-2"></div><div class="dhero-shine"></div><div class="dhero-top"><div class="dhero-logo"><span>${_isCleared?'🎉':'💳'}</span></div><div class="dhero-tag">${_isCleared?'CLEARED':'TOTAL DEBT'}</div></div><div class="dhero-amt">${fmt(totalDebt)}</div>${_allPaid>0?`<div class="dhero-paid"><span class="dhp-arrow">↓</span> ${fmt(_allPaid)} paid · ${Math.round(_clearedPct)}% cleared</div>`:''}${_origTotal>0?`<div class="dhero-progress"><div class="dhero-progress-track"><div class="dhero-progress-fill" style="width:${_clearedPct}%"></div></div></div>`:''}<div class="dhero-chips"><div class="dhero-chip"><span class="dhero-chip-ic">⏱</span><div class="dhero-chip-content"><div class="dhero-chip-label">DEBT-FREE BY</div><div class="dhero-chip-val">${_etaDateStr}</div></div></div><div class="dhero-chip"><span class="dhero-chip-ic">💸</span><div class="dhero-chip-content"><div class="dhero-chip-label">MIN / MO</div><div class="dhero-chip-val">${fmtShort(_dp.monthlyMinimum||0)}</div></div></div></div></div>`;
+    // === STRATEGY ===
+    const _strategyCard=activeDebts.length?`<div class="debt-strategy-card"><div class="debt-strategy-head"><span class="debt-strategy-label">PAYOFF STRATEGY</span>${_dp.isOnRec?`<span class="debt-strategy-pill">✓ Optimal</span>`:''}</div><div class="debt-strategy-grid"><button class="debt-strat-card${_m==='snowball'?' active':''}" onclick="setDebtPayoffMethod('snowball')"><div class="debt-strat-icon">🐌</div><div class="debt-strat-name">Snowball</div><div class="debt-strat-tag">Smallest first</div></button><button class="debt-strat-card${_m==='avalanche'?' active':''}" onclick="setDebtPayoffMethod('avalanche')"><div class="debt-strat-icon">🏔️</div><div class="debt-strat-name">Avalanche</div><div class="debt-strat-tag">Highest APR</div></button><button class="debt-strat-card${_m==='minimum'?' active':''}" onclick="setDebtPayoffMethod('minimum')"><div class="debt-strat-icon">📋</div><div class="debt-strat-name">Minimum</div><div class="debt-strat-tag">Pay minimum</div></button></div><div class="debt-strategy-desc">${_dp.methodDesc}</div></div>`:'';
+    // === REC BANNER ===
+    const _recBannerNew=(activeDebts.length&&!_dp.isOnRec)?`<div class="debt-banner debt-banner-warn"><div class="debt-banner-icon">💡</div><div class="debt-banner-body"><div class="debt-banner-title">Try ${_dp.recMethod==='avalanche'?'Avalanche':_dp.recMethod==='snowball'?'Snowball':'Minimum'}</div><div class="debt-banner-desc">${_dp.recReason}</div></div><button class="debt-banner-btn" onclick="setDebtPayoffMethod('${_dp.recMethod}')">Switch</button></div>`:'';
+    // === FOCUS ===
+    const _focusCard=(activeDebts.length&&_dp.targetDebt)?(()=>{
+      const td=_dp.targetDebt;
+      const focusReason=_m==='avalanche'?`Highest APR${td.interest?` · ${td.interest}%`:''}`:_m==='snowball'?'Smallest balance':'Top priority';
+      const moMin=_dp.targetMonthsMinOnly||0;
+      const moExtra=_dp.targetMonthsWithExtra||0;
+      const extraPct=moMin>0&&moExtra>0?Math.max(moExtra/moMin*100,8):0;
+      const projHtml=(moMin>0||moExtra>0)?`<div class="debt-focus-projection">${_dp.extraPayment>0&&moExtra>0?`<div class="dfp-row dfp-row-extra"><div class="dfp-label">With extra</div><div class="dfp-bar-wrap"><div class="dfp-bar"><div class="dfp-bar-fill dfp-fill-extra" style="width:${extraPct}%"></div></div></div><div class="dfp-val">${moExtra} mo</div></div>`:''}${moMin>0?`<div class="dfp-row dfp-row-min"><div class="dfp-label">Min only</div><div class="dfp-bar-wrap"><div class="dfp-bar"><div class="dfp-bar-fill dfp-fill-min" style="width:100%"></div></div></div><div class="dfp-val">${moMin} mo</div></div>`:''}</div>`:'';
+      const extraHint=_dp.extraPayment>0?`<div class="debt-focus-extra"><span class="dfe-icon">💡</span><span class="dfe-text">Safe extra to add</span><span class="dfe-amt">+${fmtShort(_dp.extraPayment)}/mo</span></div>`:'';
+      return`<div class="debt-focus-card"><div class="debt-focus-head"><span class="debt-focus-icon">⭐</span><span class="debt-focus-label">FOCUS THIS MONTH</span></div><div class="debt-focus-target"><div class="debt-focus-name">${esc(td.name)}</div><div class="debt-focus-meta"><span class="debt-focus-tag">${focusReason}</span><span class="debt-focus-bal">${fmtShort(Number(td.total||0))} left</span></div></div>${projHtml}${extraHint}<button class="btn btn-primary debt-focus-cta" onclick="openDebtPayment(${td.id})"><span class="dfc-ic">💳</span>Log Payment Now</button></div>`;
+    })():(activeDebts.length?`<div class="debt-focus-card debt-focus-simple"><div class="debt-focus-head"><span class="debt-focus-icon">📋</span><span class="debt-focus-label">THIS MONTH</span></div><div class="debt-focus-simple-text">Pay minimums on all <strong>${activeDebts.length}</strong> active debt${activeDebts.length!==1?'s':''}.</div></div>`:'');
+    // === RISK ===
+    const _riskWarnings=(_dp.riskFlags&&_dp.riskFlags.length)?_dp.riskFlags.map(f=>`<div class="debt-banner debt-banner-risk"><div class="debt-banner-icon">⚠️</div><div class="debt-banner-body"><div class="debt-banner-desc">${esc(f)}</div></div></div>`).join(''):'';
+    document.getElementById('debt-summary').innerHTML=`<div class="debt-summary-shell">${_heroCard}${_strategyCard}${_recBannerNew}${_focusCard}${_riskWarnings}</div>`;
+    const _debtGroupMeta={credit_card:{label:'Credit Cards',icon:'💳',tint:'rgba(239,68,68,.12)'},loan:{label:'Loans',icon:'🏦',tint:'rgba(59,130,246,.12)'},friend_family:{label:'Friend / Family',icon:'👤',tint:'rgba(139,92,246,.12)'},other:{label:'Other',icon:'📋',tint:'rgba(148,163,184,.14)'}};
     const _debtGroupOrder=['credit_card','loan','friend_family','other'];
     function _debtGroupKey(d){const t=(d.product||d.type||'').toLowerCase();if(t.includes('credit'))return'credit_card';if(t.includes('loan')||t.includes('personal')||t.includes('bill'))return'loan';if(t.includes('friend')||t.includes('family'))return'friend_family';return'other';}
     const _groupedActive={};
@@ -5415,9 +5475,9 @@ function render(){
     const _activeGroupsHtml=_debtGroupOrder.filter(g=>_groupedActive[g]).map(g=>{
       const gDebts=_groupedActive[g];const gMeta=_debtGroupMeta[g];
       const gTotal=gDebts.reduce((s,d)=>s+Number(d.total||0),0);
-      return`<div class="debt-group"><div class="debt-group-header"><span class="debt-group-icon">${gMeta.icon}</span><span class="debt-group-label">${gMeta.label}</span><span class="debt-group-count">${gDebts.length}</span><span class="debt-group-total">${fmtShort(gTotal)}</span></div><div class="debt-group-body">${gDebts.map(d=>renderDebtCard(d)).join('')}</div></div>`;
+      return`<div class="debt-group"><div class="debt-group-header" style="--debt-group-tint:${gMeta.tint}"><span class="debt-group-icon">${gMeta.icon}</span><div class="debt-group-copy"><span class="debt-group-label">${gMeta.label}</span><span class="debt-group-sub">${gDebts.length} open account${gDebts.length!==1?'s':''}</span></div><span class="debt-group-count">${gDebts.length}</span><span class="debt-group-total">${fmtShort(gTotal)}</span></div><div class="debt-group-body">${gDebts.map(d=>renderDebtCard(d)).join('')}</div></div>`;
     }).join('');
-    document.getElementById('debt-list').innerHTML=`${activeDebts.length?_activeGroupsHtml:`<div class="card" style="padding:16px;margin:0 0 12px"><div style="font-size:13px;font-weight:700;color:var(--green)">No active debts right now</div><div style="font-size:12px;color:var(--text2);margin-top:6px">Your cleared accounts stay below in Paid Off so the history is still easy to find.</div></div>`}${paidOffDebts.length?`<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:10px"><span>Paid Off</span><span style="padding:4px 8px;border-radius:999px;background:var(--green-soft);color:var(--green)">${paidOffDebts.length}</span></div>${paidOffDebts.map(d=>renderDebtCard(d,true)).join('')}`:''}`;
+    document.getElementById('debt-list').innerHTML=`${activeDebts.length?_activeGroupsHtml:`<div class="debt-empty-active"><div class="debt-empty-icon">🌱</div><div class="debt-empty-title">No active debts</div><div class="debt-empty-body">Cleared accounts stay below in Paid Off so the history is easy to find.</div></div>`}${paidOffDebts.length?`<div class="debt-paidoff-divider"><span class="dpd-line"></span><span class="dpd-label">PAID OFF</span><span class="dpd-count">${paidOffDebts.length}</span><span class="dpd-line"></span></div>${paidOffDebts.map(d=>renderDebtCard(d,true)).join('')}`:''}`;
   }
 
   try{ renderInstallmentsCard(); }catch(e){}
@@ -5469,7 +5529,7 @@ function render(){
 
   // Alert settings
   const alertSettingsEl=document.getElementById('alert-settings');
-  if(alertSettingsEl)alertSettingsEl.innerHTML=`<div class="setting-item"><div class="setting-left"><div class="setting-icon">📏</div><div><div class="setting-name">Budget warning threshold</div><div class="setting-desc">Alert when a category reaches this %</div></div></div><div style="display:flex;align-items:center;gap:8px"><input type="number" min="1" max="100" class="input setting-input" value="${alertSettings.budgetThreshold}" onchange="setAlertThreshold(this.value)"><span style="font-size:12px;color:var(--text3)">%</span></div></div>${[['overspendForecast','📉','Forecast overspending','Warn when month-end spend projected to exceed income'],['recurringDueSoon','🧾','Recurring due soon','Bills/income due today or within 3 days'],['spikeAlerts','📈','Spending spikes','Compare against last month'],['lowBalanceAlerts','💸','Low balance','Warn when daily budget gets small'],['badRealityAlerts','🚧','Bad reality alerts','Warn when debt mode, borrowing, and debt allocation conflict with your recovery plan']].map(([key,icon,name,desc])=>{const on=alertSettings[key]!==false;return`<div class="setting-item"><div class="setting-left"><div class="setting-icon">${icon}</div><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div></div><div onclick="setAlertToggle('${key}',${!on})" style="width:44px;height:24px;border-radius:12px;background:${on?'var(--accent)':'var(--border)'};position:relative;cursor:pointer;transition:background .2s;flex-shrink:0"><div style="position:absolute;top:2px;left:${on?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></div></div></div>`}).join('')}`;
+  if(alertSettingsEl)alertSettingsEl.innerHTML=`<div class="setting-item"><div class="setting-left"><div class="setting-icon">📏</div><div><div class="setting-name">Budget warning threshold</div><div class="setting-desc">Alert when a category reaches this %</div></div></div><div style="display:flex;align-items:center;gap:8px"><input type="number" min="1" max="100" class="input setting-input" value="${alertSettings.budgetThreshold}" onchange="setAlertThreshold(this.value)"><span style="font-size:12px;color:var(--text3)">%</span></div></div>${[['recurringDueSoon','🧾','Recurring due soon','Bills/income due today or within 3 days'],['spikeAlerts','📈','Spending spikes','Compare against last month'],['lowBalanceAlerts','💸','Low balance','Warn when daily budget gets small'],['badRealityAlerts','🚧','Bad reality alerts','Warn when debt mode, borrowing, and debt allocation conflict with your recovery plan']].map(([key,icon,name,desc])=>{const on=alertSettings[key]!==false;return`<div class="setting-item"><div class="setting-left"><div class="setting-icon">${icon}</div><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div></div><div onclick="setAlertToggle('${key}',${!on})" style="width:44px;height:24px;border-radius:12px;background:${on?'var(--accent)':'var(--border)'};position:relative;cursor:pointer;transition:background .2s;flex-shrink:0"><div style="position:absolute;top:2px;left:${on?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></div></div></div>`}).join('')}`;
 
   // Custom cats
   const untaggedCount=customCats.filter(c=>!c.groupExplicit).length;
