@@ -1,0 +1,378 @@
+/* ============================================================
+   FinTrack Receipt View — Foundation (Batch 1)
+   ------------------------------------------------------------
+   Paper background, monospace type, dotted/dashed dividers,
+   stamp utility, and perforated top/bottom edges.
+   ============================================================ */
+
+:root {
+  --receipt-paper:        #ffffff;
+  --receipt-ink:          #111111;
+  --receipt-ink-soft:     #555555;
+  --receipt-ink-faint:    #9a9a9a;
+  --receipt-rule:         #d9d9d9;
+  --receipt-stamp:        #d62828;
+  --receipt-radius:       14px;
+  --receipt-pad-x:        clamp(20px, 5vw, 36px);
+  --receipt-pad-y:        clamp(20px, 4vw, 32px);
+  --receipt-mono:         "JetBrains Mono", "SFMono-Regular", ui-monospace,
+                          "Menlo", "Consolas", monospace;
+  --receipt-display:      "Inter", system-ui, -apple-system, "Segoe UI",
+                          Roboto, sans-serif;
+}
+
+/* ---------- Page wrapper ---------- */
+.receipt-page {
+  min-height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px 64px;
+}
+
+.receipt-shell {
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, .35));
+}
+
+/* ---------- The paper ---------- */
+.receipt {
+  position: relative;
+  background: var(--receipt-paper);
+  color: var(--receipt-ink);
+  font-family: var(--receipt-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: var(--receipt-pad-y) var(--receipt-pad-x);
+  border-radius: var(--receipt-radius);
+}
+
+/* ---------- Typography utilities ---------- */
+.r-display {
+  font-family: var(--receipt-display);
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 4px 0 12px;
+}
+
+.r-label {
+  font-family: var(--receipt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--receipt-ink-soft);
+  text-transform: uppercase;
+}
+
+.r-value {
+  font-family: var(--receipt-mono);
+  font-size: 13px;
+  color: var(--receipt-ink);
+}
+
+.r-muted   { color: var(--receipt-ink-soft); }
+.r-faint   { color: var(--receipt-ink-faint); }
+.r-bold    { font-weight: 700; }
+
+/* ---------- Dividers ---------- */
+.r-rule           { border: 0; border-top: 1px solid var(--receipt-rule); margin: 14px 0; }
+.r-rule--dotted   { border-top-style: dotted; }
+.r-rule--dashed   { border-top-style: dashed; }
+
+/* ---------- Row (label / value) ---------- */
+.r-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.r-row + .r-row {
+  border-top: 1px dotted transparent; /* slot for batch 3 */
+}
+
+/* ---------- Pill (status, e.g. ₱X REMAINING) ---------- */
+.r-pill {
+  display: inline-block;
+  font-family: var(--receipt-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 6px 14px;
+  border: 1px solid var(--receipt-ink);
+  border-radius: 6px;
+  color: var(--receipt-ink);
+  background: transparent;
+}
+
+/* ---------- Stamp utility (red overdue / paid / etc.) ---------- */
+.r-stamp {
+  display: inline-block;
+  font-family: var(--receipt-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--receipt-stamp);
+  border: 2px solid var(--receipt-stamp);
+  border-radius: 6px;
+  padding: 8px 14px;
+  transform: rotate(-2deg);
+  opacity: .92;
+}
+
+.r-stamp--center {
+  display: block;
+  width: max-content;
+  margin: 18px auto 8px;
+}
+
+/* ---------- Action button row (back / download / share / refresh) ---------- */
+.r-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.r-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.r-iconbtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--receipt-rule);
+  background: #fafafa;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--receipt-ink);
+  transition: background .15s ease, transform .1s ease;
+}
+
+.r-iconbtn:hover { background: #f1f1f1; }
+.r-iconbtn:active { transform: scale(.96); }
+
+/* ---------- Section heading (within a receipt) ---------- */
+.r-section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 4px 0 8px;
+}
+
+.r-section-title {
+  font-family: var(--receipt-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--receipt-ink);
+}
+
+.r-section-link {
+  font-family: var(--receipt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--receipt-ink-soft);
+  text-transform: uppercase;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.r-section-link:hover { color: var(--receipt-ink); }
+
+/* ---------- Day header (groups transactions by date) ---------- */
+.r-dayhead {
+  font-family: var(--receipt-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--receipt-ink-faint);
+  margin: 14px 0 6px;
+}
+
+/* ---------- Transaction line item ---------- */
+.r-tx {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--receipt-rule);
+}
+
+.r-tx:last-child { border-bottom: 0; }
+
+.r-tx-title {
+  font-family: var(--receipt-mono);
+  font-size: 13px;
+  color: var(--receipt-ink);
+  font-weight: 600;
+}
+
+.r-tx-amount {
+  font-family: var(--receipt-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--receipt-ink);
+  white-space: nowrap;
+}
+
+/* sign indicator (income +, expense -) — kept neutral, no red/green */
+.r-tx-amount[data-sign="-"]::before { content: "− "; }
+.r-tx-amount[data-sign="+"]::before { content: "+ "; }
+
+.r-tx-meta {
+  grid-column: 1 / 2;
+  font-family: var(--receipt-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--receipt-ink-soft);
+}
+
+.r-tx-tag {
+  grid-column: 2 / 3;
+  justify-self: end;
+  font-family: var(--receipt-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--receipt-ink-faint);
+}
+
+/* ---------- Money Flow row (label + amount + bar + pct) ---------- */
+.r-flow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 10px 0 14px;
+}
+
+.r-flow-label {
+  font-family: var(--receipt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--receipt-ink-soft);
+}
+
+.r-flow-amount {
+  font-family: var(--receipt-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--receipt-ink);
+}
+
+.r-flow-bar-wrap {
+  grid-column: 1 / 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.r-flow-pct {
+  grid-column: 2 / 3;
+  justify-self: end;
+  font-family: var(--receipt-mono);
+  font-size: 11px;
+  color: var(--receipt-ink-soft);
+}
+
+/* ---------- Bar (monochrome paper-and-ink) ---------- */
+.r-bar {
+  --pct: 0%;
+  flex: 1;
+  position: relative;
+  height: 8px;
+  background: var(--receipt-rule);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.r-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct);
+  background: var(--receipt-ink);
+}
+
+/* Outline variant — for "remaining" / target lines */
+.r-bar--outline {
+  background: transparent;
+  border: 1px solid var(--receipt-rule);
+}
+
+/* ---------- Category line (compact: name, amount, mini bar, pct) ---------- */
+.r-cat {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--receipt-rule);
+}
+
+.r-cat:last-child { border-bottom: 0; }
+
+.r-cat-name {
+  font-family: var(--receipt-mono);
+  font-size: 12px;
+  color: var(--receipt-ink);
+  font-weight: 600;
+}
+
+.r-cat-amount {
+  font-family: var(--receipt-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--receipt-ink);
+}
+
+.r-cat-bar {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.r-cat-pct {
+  font-family: var(--receipt-mono);
+  font-size: 10px;
+  color: var(--receipt-ink-soft);
+  white-space: nowrap;
+}
+
+/* ---------- Footer line (PRINTED BY ...) ---------- */
+.r-footnote {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--receipt-ink-faint);
+  text-transform: uppercase;
+  margin-top: 14px;
+}
+
+/* ---------- Demo-only helpers (remove or override later) ---------- */
+.r-demo-note {
+  max-width: 420px;
+  margin: 24px auto 0;
+  color: #9a9a9a;
+  font-family: var(--receipt-mono);
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}

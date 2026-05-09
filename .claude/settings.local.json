@@ -12,7 +12,11 @@
       "Bash(git checkout *)",
       "Bash(Get-ChildItem -Recurse -File)",
       "Bash(Select-Object -First 50)",
-      "Bash(Format-Table Name, FullName)"
+      "Bash(Format-Table Name, FullName)",
+      "WebSearch",
+      "WebFetch(domain:www.tarsi.cloud)",
+      "WebFetch(domain:tarsi.pocketdevs.ph)",
+      "WebFetch(domain:apps.apple.com)"
     ]
   }
 }

@@ -308,6 +308,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="saveHistoryPreset()">Save Preset</button>
       <button class="btn btn-ghost btn-sm" onclick="resetHistoryFilters()">Reset Filters</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCsvImportModal()">📤 Import</button>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">📥 CSV</button>
     </div>
     <div id="hist-presets" class="history-drawer-presets"></div>
@@ -397,7 +398,7 @@
   <div class="card"><div class="card-header"><span class="card-title">Settings</span><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="tour-target-smart-setup" onclick="openModal('modal-smart-budget')">Smart Setup</button><button class="btn btn-sm btn-ghost" onclick="openSmartRefresh()">Smart Refresh</button><button class="btn btn-sm btn-ghost" id="tour-target-rebalance" onclick="openBudgetRebalance()">Rebalance</button></div></div>
     <div id="settings-content"></div>
   </div>
-  <div class="card" id="tour-target-recurring-card"><div class="card-header"><span class="card-title">Recurring Bills & Income</span><button class="btn btn-sm btn-ghost" onclick="openModal('modal-add-recurring')">+ Add</button></div><div id="recurring-manager"></div></div>
+  <div class="card" id="tour-target-recurring-card"><div class="card-header"><span class="card-title">Recurring Bills & Income</span><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="openRecurringBatchAssistant()">Batch</button><button class="btn btn-sm btn-ghost" onclick="openModal('modal-add-recurring')">+ Add</button></div></div><div id="recurring-manager"></div></div>
   <div class="card"><div class="card-header"><span class="card-title">Smart Alert Settings</span></div><div id="alert-settings"></div></div>
   <div class="card"><div class="card-header"><span class="card-title">Custom Categories</span></div><div id="custom-cat-list"></div></div>
   <div class="card" id="tour-target-backup-card"><div class="card-header"><span class="card-title">Backup & Restore</span></div>
@@ -435,21 +436,30 @@
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-edit-goal')">Cancel</button><button class="btn btn-danger btn-sm" onclick="deleteGoal()">Delete</button><button class="btn btn-primary" onclick="saveGoalEdit()">Save</button></div>
 </div></div>
 
-<div class="modal-overlay" id="modal-goal-contribution" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Log Goal Contribution</h3>
+<div class="modal-overlay" id="modal-goal-contribution" onclick="if(event.target===this)closeModal(this.id)"><div class="modal goal-contribution-modal"><div class="modal-handle"></div><h3>Log Goal Contribution</h3>
+  <div id="gc-impact"></div>
   <div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="gc-amount" placeholder="0.00" oninput="updateGoalContributionPreview()"></div>
-  <div style="display:flex;gap:8px;margin:-4px 0 12px;flex-wrap:wrap"><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(500)">+₱500</button><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(1000)">+₱1,000</button><button class="quick-chip" type="button" onclick="applyQuickGoalContribution(2000)">+₱2,000</button><button class="quick-chip" type="button" onclick="applyGoalMonthlyContribution()">+ Planned</button></div>
+  <div class="goal-contribution-quick" id="gc-quick-amounts"></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="gc-date"></div><div class="input-group"><label class="input-label">Account</label><select class="input" id="gc-account" onchange="updateGoalContributionPreview()"></select></div></div>
   <div id="gc-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
   <div class="input-group"><label class="input-label">Note</label><input type="text" class="input" id="gc-note" placeholder="Optional note"></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-goal-contribution')">Cancel</button><button class="btn btn-primary" id="gc-save-btn" onclick="saveGoalContribution()">Save</button></div>
 </div></div>
 
-<div class="modal-overlay" id="modal-goal-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="gh-title">Goal Contribution History</h3><div id="gh-list"></div><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-goal-history')">Close</button></div></div></div>
+<div class="modal-overlay" id="modal-goal-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal goal-history-modal"><div class="modal-handle"></div><h3 id="gh-title">Goal Contribution History</h3><div id="gh-list"></div><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-goal-history')">Close</button></div></div></div>
 
 <div class="modal-overlay" id="modal-add-wish" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Add to Wishlist</h3>
-  <div class="input-group"><label class="input-label">Item</label><input type="text" class="input" id="w-name" placeholder="e.g. AirPods"></div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Price (₱)</label><input type="number" class="input" id="w-price" placeholder="0"></div><div class="input-group"><label class="input-label">Priority</label><select class="input" id="w-priority"><option>Low</option><option>Medium</option><option selected>Want</option><option>Need Soon</option></select></div></div>
+  <div class="input-group"><label class="input-label">Item</label><input type="text" class="input" id="w-name" placeholder="e.g. AirPods" oninput="updateWishPlanPreview()"></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Price (₱)</label><input type="number" class="input" id="w-price" placeholder="0" oninput="updateWishPlanPreview()"></div><div class="input-group"><label class="input-label">Priority</label><select class="input" id="w-priority" onchange="updateWishPlanPreview()"><option>Low</option><option>Medium</option><option selected>Want</option><option>Need Soon</option></select></div></div>
+  <div id="wish-plan-preview" class="wish-plan-preview" aria-live="polite"></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-add-wish')">Cancel</button><button class="btn btn-primary" onclick="addWish()">Add</button></div>
+</div></div>
+
+<div class="modal-overlay" id="modal-wish-purchase" onclick="if(event.target===this)closeModal(this.id)"><div class="modal wish-purchase-modal"><div class="modal-handle"></div><h3>Buy Wishlist Item</h3>
+  <div id="wish-purchase-impact"></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="wish-buy-account" onchange="updateWishPurchasePreview()"></select></div><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="wish-buy-date"></div></div>
+  <div id="wish-buy-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-wish-purchase')">Cancel</button><button class="btn btn-primary" id="wish-buy-save" onclick="confirmWishPurchase()">Buy & Log</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modal-add-debt" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Add Debt</h3>
@@ -462,10 +472,12 @@
 </div></div>
 
 
-<div class="modal-overlay" id="modal-debt-payment" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3>Log Debt Payment</h3>
+<div class="modal-overlay" id="modal-debt-payment" onclick="if(event.target===this)closeModal(this.id)"><div class="modal debt-payment-modal"><div class="modal-handle"></div><h3>Log Debt Payment</h3>
   <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px" id="dp-debt-name">Debt payment</div>
+  <div id="dp-impact"></div>
   <div class="input-row"><div class="input-group"><label class="input-label">Amount (₱)</label><input type="number" class="input" id="dp-amount" placeholder="0.00" oninput="updateDebtPaymentPreview()"></div><div class="input-group"><label class="input-label">Date</label><input type="date" class="input" id="dp-date"></div></div>
-  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="dp-account" onchange="updateDebtPaymentPreview()"></select></div><div class="input-group"><label class="input-label">Mark monthly payment</label><select class="input" id="dp-mark-paid"><option value="yes" selected>Yes</option><option value="no">No</option></select></div></div>
+  <div class="debt-payment-quick" id="dp-quick-amounts"></div>
+  <div class="input-row"><div class="input-group"><label class="input-label">Account</label><select class="input" id="dp-account" onchange="updateDebtPaymentPreview()"></select></div><div class="input-group"><label class="input-label">Mark monthly payment</label><select class="input" id="dp-mark-paid" onchange="updateDebtPaymentPreview()"><option value="yes" selected>Yes</option><option value="no">No</option></select></div></div>
   <div class="input-group"><label class="input-label">Bank Transfer Fee (optional)</label><input type="number" class="input" id="dp-fee" placeholder="0.00" oninput="updateDebtPaymentPreview()"></div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px"><button class="quick-chip" type="button" onclick="setDebtPaymentFee(0)">₱0</button><button class="quick-chip" type="button" onclick="setDebtPaymentFee(15)">₱15</button><button class="quick-chip" type="button" onclick="setDebtPaymentFee(25)">₱25</button></div>
   <div id="dp-balance-preview" class="add-balance-preview" style="margin-bottom:14px"></div>
@@ -473,7 +485,7 @@
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-debt-payment')">Cancel</button><button class="btn btn-primary" id="dp-save-btn" onclick="saveDebtPayment()">Save Payment</button></div>
 </div></div>
 
-<div class="modal-overlay" id="modal-debt-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="dh-title">Payment History</h3>
+<div class="modal-overlay" id="modal-debt-history" onclick="if(event.target===this)closeModal(this.id)"><div class="modal debt-history-modal"><div class="modal-handle"></div><h3 id="dh-title">Payment History</h3>
   <div id="dh-list"></div>
   <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-debt-history')">Close</button></div>
 </div></div>
@@ -583,11 +595,45 @@
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-salary-receive')">Cancel</button><button class="btn btn-primary" onclick="saveSalaryReceipt()">Confirm Deposit</button></div>
 </div></div>
 
+<div class="modal-overlay" id="modal-recurring-batch" onclick="if(event.target===this)closeModal(this.id)">
+  <div class="modal recurring-batch-modal">
+    <div class="modal-handle"></div>
+    <h3>Review Recurring Items</h3>
+    <div class="recurring-batch-copy">Select the bills, income, and transfers to post for this month. Nothing is saved until you confirm.</div>
+    <div id="recurring-batch-summary"></div>
+    <div id="recurring-batch-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-recurring-batch')">Cancel</button>
+      <button class="btn btn-primary" id="recurring-batch-confirm" onclick="confirmRecurringBatch()">Confirm Selected</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-info" onclick="if(event.target===this)closeModal(this.id)"><div class="modal"><div class="modal-handle"></div><h3 id="info-title">About</h3><div id="info-body" style="font-size:13px;color:var(--text2);line-height:1.7"></div><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-info')">Got it</button></div></div></div>
 
 <div class="modal-overlay" id="modal-app-alert" onclick="closeModal('modal-app-alert')"><div class="modal"><div class="modal-handle"></div><h3 id="app-alert-title">Notice</h3><p id="app-alert-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('modal-app-alert')">OK</button></div></div></div>
 
 <div class="modal-overlay" id="modal-app-confirm"><div class="modal"><div class="modal-handle"></div><h3 id="app-confirm-title">Confirm</h3><p id="app-confirm-body" style="font-size:13px;color:var(--text2);line-height:1.65;margin:0 0 4px"></p><div class="modal-actions"><button class="btn btn-ghost" onclick="_appConfirmCancel()">Cancel</button><button class="btn btn-primary" id="app-confirm-ok" onclick="_appConfirmOk()">OK</button></div></div></div>
+
+<div class="modal-overlay" id="modal-csv-import" onclick="if(event.target===this)closeModal(this.id)">
+  <div class="modal csv-import-modal">
+    <div class="modal-handle"></div>
+    <h3>Import CSV</h3>
+    <div class="csv-import-copy">Review transactions before saving. FinTrack will skip invalid rows and can avoid duplicates.</div>
+    <div class="input-group"><label class="input-label">CSV file</label><input type="file" class="input" id="csv-import-file" accept=".csv,text/csv" onchange="handleCsvImportFile(event)"></div>
+    <div class="input-row">
+      <div class="input-group"><label class="input-label">Default Account</label><select class="input" id="csv-import-account" onchange="reparseCsvImportDraft()"></select></div>
+      <div class="input-group"><label class="input-label">Missing Type</label><select class="input" id="csv-import-type" onchange="reparseCsvImportDraft()"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+    </div>
+    <label class="csv-import-check"><input type="checkbox" id="csv-import-skip-dupes" checked onchange="renderCsvImportPreview()"> Skip likely duplicates</label>
+    <div id="csv-import-summary"></div>
+    <div id="csv-import-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-csv-import')">Cancel</button>
+      <button class="btn btn-primary" id="csv-import-save" onclick="confirmCsvImport()" disabled>Import</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modal-nw-account" onclick="if(event.target===this)closeModal(this.id)"><div class="modal nw-modal-sheet"><div class="modal-handle"></div><div class="nw-modal-head"><div><div class="nw-modal-kicker" id="nw-modal-kicker">Net Worth</div><h3 id="nw-modal-title">Add Account</h3></div></div>
   <div id="nw-modal-preview"></div>

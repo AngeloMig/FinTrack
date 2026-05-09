@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinTrack — Receipt Dashboard (Demo)</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/receipt.css">
+</head>
+<body>
+
+<main class="receipt-page">
+  <div class="receipt-shell">
+    <article class="receipt" aria-label="Monthly summary receipt">
+
+      <!-- Top action row -->
+      <div class="r-actions">
+        <button class="r-iconbtn" aria-label="Menu">≡</button>
+        <div class="r-actions-right">
+          <button class="r-iconbtn" aria-label="Notifications">🔔</button>
+          <button class="r-iconbtn" aria-label="Settings">⚙</button>
+        </div>
+      </div>
+
+      <!-- Eyebrow -->
+      <div class="r-label" style="text-align:center;">FinTrack · Monthly Summary</div>
+
+      <!-- Title -->
+      <h1 class="r-display">May 2026</h1>
+
+      <!-- Headline pill -->
+      <div style="text-align:center;">
+        <span class="r-pill">₱18,420.00 SAFE TO SPEND</span>
+      </div>
+
+      <hr class="r-rule">
+
+      <!-- Money summary rows -->
+      <div class="r-row">
+        <span class="r-label">Total Income</span>
+        <span class="r-value r-bold">₱45,000.00</span>
+      </div>
+      <div class="r-row">
+        <span class="r-label">Total Expenses</span>
+        <span class="r-value r-bold">₱26,580.00</span>
+      </div>
+      <div class="r-row">
+        <span class="r-label">Net This Month</span>
+        <span class="r-value r-bold">₱18,420.00</span>
+      </div>
+
+      <hr class="r-rule r-rule--dotted">
+
+      <!-- Budget snapshot -->
+      <div class="r-label" style="margin-bottom:6px;">Budget · 50 / 30 / 20</div>
+
+      <div class="r-row">
+        <span class="r-value">Needs</span>
+        <span class="r-value r-muted">₱14,200 / ₱22,500</span>
+      </div>
+      <div class="r-row">
+        <span class="r-value">Wants</span>
+        <span class="r-value r-muted">₱9,380 / ₱13,500</span>
+      </div>
+      <div class="r-row">
+        <span class="r-value">Savings</span>
+        <span class="r-value r-muted">₱3,000 / ₱9,000</span>
+      </div>
+
+      <hr class="r-rule r-rule--dashed">
+
+      <!-- Period -->
+      <div class="r-row">
+        <span class="r-label">Period</span>
+        <span class="r-value">May 1 – May 31, 2026</span>
+      </div>
+      <div class="r-row">
+        <span class="r-label">Days Left</span>
+        <span class="r-value">22</span>
+      </div>
+
+      <p class="r-footnote">Printed by FinTrack on May 9, 2026</p>
+
+    </article>
+
+    <!-- ============================================================
+         Money Flow — Batch 4
+         ============================================================ -->
+    <article class="receipt" aria-label="Money flow" style="margin-top:28px;">
+
+      <div class="r-section">
+        <span class="r-section-title">Money Flow · May</span>
+        <span class="r-section-link">59% spent</span>
+      </div>
+
+      <hr class="r-rule">
+
+      <!-- Income -->
+      <div class="r-flow">
+        <span class="r-flow-label">Income</span>
+        <span class="r-flow-amount">₱45,000.00</span>
+        <div class="r-flow-bar-wrap">
+          <div class="r-bar" style="--pct:100%;" aria-hidden="true"></div>
+        </div>
+        <span class="r-flow-pct">100%</span>
+      </div>
+
+      <!-- Expenses -->
+      <div class="r-flow">
+        <span class="r-flow-label">Expenses</span>
+        <span class="r-flow-amount">₱26,580.00</span>
+        <div class="r-flow-bar-wrap">
+          <div class="r-bar" style="--pct:59%;" aria-hidden="true"></div>
+        </div>
+        <span class="r-flow-pct">59%</span>
+      </div>
+
+      <!-- Net -->
+      <div class="r-flow">
+        <span class="r-flow-label">Net Saved</span>
+        <span class="r-flow-amount">₱18,420.00</span>
+        <div class="r-flow-bar-wrap">
+          <div class="r-bar r-bar--outline" style="--pct:41%;" aria-hidden="true"></div>
+        </div>
+        <span class="r-flow-pct">41%</span>
+      </div>
+
+      <hr class="r-rule r-rule--dotted">
+
+      <div class="r-label" style="margin-bottom:8px;">Top Expense Categories</div>
+
+      <div class="r-cat">
+        <span class="r-cat-name">Food &amp; Dining</span>
+        <span class="r-cat-amount">₱8,200.00</span>
+        <div class="r-cat-bar">
+          <div class="r-bar" style="--pct:31%;" aria-hidden="true"></div>
+          <span class="r-cat-pct">31%</span>
+        </div>
+      </div>
+
+      <div class="r-cat">
+        <span class="r-cat-name">Transport</span>
+        <span class="r-cat-amount">₱4,100.00</span>
+        <div class="r-cat-bar">
+          <div class="r-bar" style="--pct:15%;" aria-hidden="true"></div>
+          <span class="r-cat-pct">15%</span>
+        </div>
+      </div>
+
+      <div class="r-cat">
+        <span class="r-cat-name">Bills &amp; Utilities</span>
+        <span class="r-cat-amount">₱3,840.00</span>
+        <div class="r-cat-bar">
+          <div class="r-bar" style="--pct:14%;" aria-hidden="true"></div>
+          <span class="r-cat-pct">14%</span>
+        </div>
+      </div>
+
+      <div class="r-cat">
+        <span class="r-cat-name">Subscriptions</span>
+        <span class="r-cat-amount">₱2,100.00</span>
+        <div class="r-cat-bar">
+          <div class="r-bar" style="--pct:8%;" aria-hidden="true"></div>
+          <span class="r-cat-pct">8%</span>
+        </div>
+      </div>
+
+      <p class="r-footnote">Printed by FinTrack on May 9, 2026</p>
+
+    </article>
+
+    <!-- ============================================================
+         Recent Transactions — Batch 3
+         ============================================================ -->
+    <article class="receipt" aria-label="Recent transactions" style="margin-top:28px;">
+
+      <div class="r-section">
+        <span class="r-section-title">Recent Transactions</span>
+        <button class="r-section-link" type="button">See all →</button>
+      </div>
+
+      <hr class="r-rule">
+
+      <!-- Day group: today -->
+      <div class="r-dayhead">May 9, 2026 · Today</div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">SM Supermarket</span>
+        <span class="r-tx-amount" data-sign="-">₱1,240.00</span>
+        <span class="r-tx-meta">Groceries · GCash</span>
+        <span class="r-tx-tag">Need</span>
+      </div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">Grab — Office</span>
+        <span class="r-tx-amount" data-sign="-">₱185.00</span>
+        <span class="r-tx-meta">Transport · GCash</span>
+        <span class="r-tx-tag">Need</span>
+      </div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">Spotify</span>
+        <span class="r-tx-amount" data-sign="-">₱149.00</span>
+        <span class="r-tx-meta">Subscriptions · BPI</span>
+        <span class="r-tx-tag">Want</span>
+      </div>
+
+      <!-- Day group: yesterday -->
+      <div class="r-dayhead">May 8, 2026 · Yesterday</div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">Salary — May (1st half)</span>
+        <span class="r-tx-amount" data-sign="+">₱22,500.00</span>
+        <span class="r-tx-meta">Income · BPI</span>
+        <span class="r-tx-tag">Pay</span>
+      </div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">Jollibee</span>
+        <span class="r-tx-amount" data-sign="-">₱260.00</span>
+        <span class="r-tx-meta">Dining · Cash</span>
+        <span class="r-tx-tag">Want</span>
+      </div>
+
+      <!-- Day group: earlier -->
+      <div class="r-dayhead">May 6, 2026</div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">Meralco</span>
+        <span class="r-tx-amount" data-sign="-">₱2,840.00</span>
+        <span class="r-tx-meta">Utilities · BPI</span>
+        <span class="r-tx-tag">Need</span>
+      </div>
+
+      <div class="r-tx">
+        <span class="r-tx-title">BDO Savings</span>
+        <span class="r-tx-amount" data-sign="-">₱3,000.00</span>
+        <span class="r-tx-meta">Transfer · BPI → BDO</span>
+        <span class="r-tx-tag">Save</span>
+      </div>
+
+      <hr class="r-rule r-rule--dashed">
+
+      <div class="r-row">
+        <span class="r-label">Shown</span>
+        <span class="r-value">7 of 42 this month</span>
+      </div>
+
+      <p class="r-footnote">Printed by FinTrack on May 9, 2026</p>
+
+    </article>
+
+  </div>
+</main>
+
+<p class="r-demo-note">
+  Batch 3 — Recent Transactions card.<br>
+  Next: Money Flow / Upcoming Bills, then wiring to real data.
+</p>
+
+</body>
+</html>
