@@ -814,7 +814,10 @@ textarea{
   border:1px solid rgba(148,163,184,.26);
   background:rgba(255,255,255,.98);
   box-shadow:0 10px 28px rgba(15,23,42,.12),0 1px 3px rgba(15,23,42,.06);
-  overflow:hidden;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
 }
 .dark .notif-panel{
   background:rgba(22,27,46,.98);
@@ -1035,6 +1038,12 @@ button,
 .btn-sm{
   min-height:36px;
 }
+.notif-panel .notif-pay-btn{
+  min-height:28px;
+  padding-top:3px;
+  padding-bottom:3px;
+  line-height:1;
+}
 .quick-chip,
 .filter-pill{
   min-height:34px;
@@ -1182,12 +1191,29 @@ select.input{
     grid-template-columns:1fr;
   }
   .safe-spend-title-row,
+  .safe-spend-guidance,
   .safe-spend-meta-row,
   .budget-split-head,
   .budget-review-head,
   .cashflow-item{
     flex-direction:column;
     align-items:stretch;
+  }
+  .safe-spend-main{
+    align-items:flex-start;
+    text-align:left;
+  }
+  .safe-spend-action-hint{
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .safe-spend-action-hint strong,
+  .safe-spend-action-hint em{
+    white-space:normal;
+  }
+  .safe-spend-action-hint em{
+    width:100%;
+    margin-left:28px;
   }
   .safe-spend-days-pill,
   .safe-spend-status,
@@ -1326,6 +1352,38 @@ select.input{
   }
   .csv-import-summary{
     grid-template-columns:1fr 1fr;
+  }
+  .rec-summary-strip{
+    grid-template-columns:1fr 1fr;
+  }
+  .ai-summary-strip{
+    grid-template-columns:1fr 1fr;
+  }
+  .ai-item{
+    grid-template-columns:22px minmax(0,1fr);
+    gap:6px;
+    padding:7px 8px;
+  }
+  .ai-item-icon{
+    width:22px;
+    height:22px;
+    border-radius:8px;
+  }
+  .rec-card{
+    grid-template-columns:34px minmax(0,1fr);
+    gap:8px;
+    padding:11px;
+  }
+  .rec-card-icon{
+    width:34px;
+    height:34px;
+    border-radius:12px;
+  }
+  .rec-card-bottom{
+    grid-template-columns:1fr 1fr auto;
+  }
+  .rec-status{
+    text-align:left;
   }
   .csv-import-row{
     gap:8px;

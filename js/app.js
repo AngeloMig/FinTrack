@@ -370,15 +370,58 @@ function getUnpaidRecurringDueSoon(limit=5){
     .sort((a,b)=>a.status.days-b.status.days)
     .slice(0,limit);
 }
+function getPendingSalaryDueSoon(limit=2){
+  normalizePaySchedule();
+  const monthKey=currentMonthKey();
+  const today=new Date(todayStr+'T00:00:00');
+  const [y,m]=monthKey.split('-').map(Number);
+  const lastDay=new Date(y,m,0).getDate();
+  const received=paySchedule.received||{};
+  return (paySchedule.splits||[])
+    .map(split=>{
+      const day=Math.min(Math.max(parseInt(split.day||1),1),lastDay);
+      const key=getSalaryReceiptKey(monthKey,day);
+      const due=new Date(y,m-1,day);
+      const days=Math.ceil((due-today)/864e5);
+      const status=days<0?{label:`Payday passed ${Math.abs(days)}d ago`,color:'var(--red)',days}:days===0?{label:'Payday today',color:'var(--green)',days}:days<=3?{label:`Payday in ${days}d`,color:'var(--green)',days}:{label:`Payday in ${days}d`,color:'var(--accent)',days};
+      return{split,key,due,status};
+    })
+    .filter(({key,status})=>!received[key]&&status.days<=3)
+    .sort((a,b)=>a.status.days-b.status.days)
+    .slice(0,limit);
+}
 
 function renderDueSoonNotification(){
   const wrap=document.getElementById('notif-due-soon');
   const section=document.getElementById('notif-due-section');
   if(!wrap)return;
-  const items=getUnpaidRecurringDueSoon(5);
+  const salaryItems=getPendingSalaryDueSoon(2);
+  const recurringItems=getUnpaidRecurringDueSoon(Math.max(3,5-salaryItems.length));
+  const items=[
+    ...salaryItems.map(s=>({kind:'salary',...s})),
+    ...recurringItems.map(r=>({kind:'recurring',...r}))
+  ].sort((a,b)=>a.status.days-b.status.days).slice(0,5);
   if(section)section.style.display=items.length?'':'none';
   if(!items.length){wrap.innerHTML='';return;}
-  wrap.innerHTML=items.map(({item,status})=>{
+  wrap.innerHTML=items.map(row=>{
+    if(row.kind==='salary'){
+      const split=row.split;
+      const amount=Number(split.amount||0);
+      const acc=getAccountInfo(split.account||getDefaultAccountKey());
+      const btnLabel=row.status.days>0?'Receive Early':'Receive';
+      return`<div class="notif-cf-item notif-due-item">
+        <div class="notif-cf-icon">💼</div>
+        <div class="notif-cf-main">
+          <div class="notif-cf-name">Salary</div>
+          <div class="notif-cf-meta" style="color:${row.status.color}">${esc(row.status.label)} • ${esc(acc.name)}</div>
+        </div>
+        <div class="notif-due-actions">
+          <div class="notif-cf-amount income">+${fmtShort(amount)}</div>
+          <button class="btn btn-sm btn-success notif-pay-btn" onclick="openSalaryReceiptModal(${split.day});toggleNotifications()">${btnLabel}</button>
+        </div>
+      </div>`;
+    }
+    const item=row.item,status=row.status;
     const icon=item.type==='transfer'?'↔':item.type==='bill'?'🧾':'💵';
     const amountLabel=item.type==='income'?`+${fmtShort(item.amount)}`:fmtShort(item.amount);
     const btnLabel=item.type==='transfer'?'Run':item.type==='income'?'Receive':'Pay';
@@ -2327,6 +2370,10 @@ function renderSafeSpendCard(){
   const todayBarW = Math.min(100, todayPct);
   const todayLeft = Math.max(s.daily - todaySpent, 0);
   const todayLeftLabel = todaySpent >= s.daily ? 'Limit reached' : `${fmt(todayLeft)} left today`;
+  const guidanceTitle=s.daily<=0?'No safe spending room today':s.status==='risk'?'Keep spending paused today':s.status==='warn'?'Spend carefully today':'Safe room available today';
+  const guidanceReason=s.daily<=0?'Your remaining budget is reserved for bills, buffer, and the rest of the month.':s.status==='risk'?'Bills, buffer, and current spending leave very little daily room.':s.status==='warn'?'There is still room, but staying below this limit matters.':'This amount already accounts for bills, buffer, and remaining days.';
+  const actionText=s.daily<=0?'Avoid extra spending today':s.status==='risk'?'Only essential spending':s.status==='warn'?'Keep purchases small':'Stay within today’s guide';
+  const statusLabel=s.daily<=0?'Limit reached':s.label;
 
   wrap.innerHTML=`
     <div class="safe-spend-title-row">
@@ -2342,11 +2389,23 @@ function renderSafeSpendCard(){
       </div>
       <div class="safe-spend-badge-wrap">
         <div class="safe-spend-label-inline">Daily Limit</div>
-        <div class="safe-spend-status ${s.status}">${s.label}</div>
+        <div class="safe-spend-status ${s.status}">${statusLabel}</div>
       </div>
     </div>
-    <div class="safe-spend-main">
-      <div class="safe-spend-amount ${s.status!=='good'?s.status:''}">${fmt(s.daily)}</div>
+    <div class="safe-spend-guidance">
+      <div class="safe-spend-guidance-copy">
+        <div class="safe-spend-guidance-title">${guidanceTitle}</div>
+        <div class="safe-spend-guidance-reason">${guidanceReason}</div>
+      </div>
+      <div class="safe-spend-main">
+        <div class="safe-spend-amount ${s.status!=='good'?s.status:''}">${fmt(s.daily)}</div>
+        <div class="safe-spend-amount-label">safe today</div>
+      </div>
+    </div>
+    <div class="safe-spend-action-hint ${s.status}">
+      <span>${s.status==='good'?'✓':'!'}</span>
+      <strong>${actionText}</strong>
+      <em>${s.nextBill?`Next bill: ${esc(s.nextBill.name)} ${fmtShort(s.nextBill.amount)}`:`${s.daysLeft} day${s.daysLeft===1?'':'s'} left`}</em>
     </div>
     <div class="safe-spend-meta-row">
       <span class="safe-spend-meta">${fmt(s.remaining)} remaining this month</span>
@@ -2991,6 +3050,21 @@ function getForecastData(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft)
 
 /* Smart insights */
 function getSmartInsights(ac,catTotals,totalIncome,monthTotal,remaining,daysLeft,forecast){const insights=[];const nonSavings=ac.filter(c=>c.group!=='savings');const overBudget=nonSavings.map(c=>{const spent=catTotals[c.name]||0;const budget=budgets[c.name]||0;const pct=budget>0?(spent/budget*100):0;return{...c,spent,budget,pct}}).filter(c=>c.budget>0&&c.spent>c.budget).sort((a,b)=>(b.spent-b.budget)-(a.spent-a.budget));if(overBudget.length){const c=overBudget[0];insights.push({type:'warning',icon:'⚠️',title:`${c.name} is over budget`,detail:`Over by ${fmtShort(c.spent-c.budget)} (${Math.round(c.pct)}% used).`})}const topSpend=Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];if(topSpend&&topSpend[1]>0)insights.push({type:'info',icon:'📌',title:`Top spending: ${topSpend[0]}`,detail:`${fmtShort(topSpend[1])} this month.`});const savingsBudget=ac.filter(c=>c.group==='savings').reduce((s,c)=>s+Number(budgets[c.name]||0),0);const savingsRate=totalIncome>0?(savingsBudget/totalIncome*100):0;if(savingsRate>=15)insights.push({type:'good',icon:'✅',title:'Savings plan looks healthy',detail:`About ${Math.round(savingsRate)}% of income allocated to savings.`});else insights.push({type:'tip',icon:'💡',title:'Savings allocation is low',detail:'Try moving a little from wants into savings.'});const safeSpendNow=getSafeSpendRealData();if(safeSpendNow&&safeSpendNow.daily>0)insights.push({type:'tip',icon:'💡',title:'Safe daily spend target',detail:`Aim for around ${fmtShort(safeSpendNow.daily)} per day.`});const seen=new Set();return insights.filter(x=>{const key=x.title+'|'+x.detail;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5)}
+function renderAICardItem(item,kind){
+  const tone=item.type==='critical'?'critical':item.type==='warn'||item.type==='warning'?'warn':item.type==='good'?'good':item.type==='tip'?'tip':'info';
+  const label=tone==='critical'?'Priority':tone==='warn'?'Watch':tone==='good'?'Good':tone==='tip'?'Tip':'Pattern';
+  return `<div class="ai-item ai-${tone}">
+    <div class="ai-item-icon">${item.icon}</div>
+    <div class="ai-item-main">
+      <div class="ai-item-top">
+        <span class="ai-item-label">${label}</span>
+        <span class="ai-item-kind">${kind}</span>
+      </div>
+      <div class="ai-item-title">${esc(item.title)}</div>
+      <div class="ai-item-detail">${esc(item.detail)}</div>
+    </div>
+  </div>`;
+}
 
 /* Notifications */
 const _NW_ICON_CAROUSEL=`<svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor"><rect x="0" y="0" width="10" height="12" rx="2"/><rect x="12" y="2" width="3" height="8" rx="1.5" opacity=".35"/></svg>`;
@@ -5936,7 +6010,28 @@ function render(){
   const hasInsights=insights.length>0;
   if(hasAlerts||hasInsights){
     const defaultTab=hasAlerts?'alerts':'insights';
-    aiCard.innerHTML=`<div class="card"><div class="card-header" style="margin-bottom:10px"><span class="card-title">Alerts & Insights ${tooltipMarkup('tip-alerts')}</span></div>${helpMode?'<div class="help-inline">Warnings and suggestions based on your current month.</div>':''}<div class="tab-row"><button class="tab-btn ${defaultTab==='alerts'?'active':''}" onclick="switchAITab('alerts')">⚠️ Alerts${hasAlerts?' ('+smartAlerts.length+')':''}</button><button class="tab-btn ${defaultTab==='insights'?'active':''}" onclick="switchAITab('insights')">💡 Insights</button></div><div class="tab-pane ${defaultTab==='alerts'?'active':''}" id="ai-pane-alerts"><div style="display:grid;gap:5px">${smartAlerts.map(a=>`<div style="padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:${a.type==='critical'?'var(--red-soft)':'var(--surface2)'};display:flex;align-items:center;gap:8px"><span style="font-size:14px;flex-shrink:0">${a.icon}</span><div style="min-width:0"><div style="font-size:12px;font-weight:700;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.title)}</div><div style="font-size:11px;color:var(--text2)">${esc(a.detail)}</div></div></div>`).join('')}</div></div><div class="tab-pane ${defaultTab==='insights'?'active':''}" id="ai-pane-insights"><div style="display:grid;gap:5px">${insights.map(i=>`<div style="padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:${i.type==='warning'?'var(--red-soft)':i.type==='good'?'var(--green-soft)':'var(--surface2)'};display:flex;align-items:center;gap:8px"><span style="font-size:14px;flex-shrink:0">${i.icon}</span><div style="min-width:0"><div style="font-size:12px;font-weight:700;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.title)}</div><div style="font-size:11px;color:var(--text2)">${esc(i.detail)}</div></div></div>`).join('')}</div></div></div>`;
+    const criticalCount=smartAlerts.filter(a=>a.type==='critical').length;
+    const watchCount=smartAlerts.filter(a=>a.type!=='critical').length;
+    const goodCount=insights.filter(i=>i.type==='good').length;
+    const aiSummary=criticalCount?`${criticalCount} priority alert${criticalCount===1?'':'s'} need attention`:hasAlerts?`${smartAlerts.length} alert${smartAlerts.length===1?'':'s'} to watch`:'No active alerts right now';
+    aiCard.innerHTML=`<div class="card ai-card">
+      <div class="card-header ai-card-head">
+        <div>
+          <span class="card-title">Alerts & Insights ${tooltipMarkup('tip-alerts')}</span>
+          <div class="ai-card-subtitle">${aiSummary}</div>
+        </div>
+      </div>
+      ${helpMode?'<div class="help-inline">Warnings and suggestions based on your current month.</div>':''}
+      <div class="ai-summary-strip">
+        <div class="${criticalCount?'risk':''}"><strong>${criticalCount}</strong><span>priority</span></div>
+        <div><strong>${watchCount}</strong><span>watch</span></div>
+        <div><strong>${insights.length}</strong><span>insights</span></div>
+        <div class="${goodCount?'good':''}"><strong>${goodCount}</strong><span>positive</span></div>
+      </div>
+      <div class="tab-row ai-tabs"><button class="tab-btn ${defaultTab==='alerts'?'active':''}" onclick="switchAITab('alerts')">Alerts${hasAlerts?' '+smartAlerts.length:''}</button><button class="tab-btn ${defaultTab==='insights'?'active':''}" onclick="switchAITab('insights')">Insights${hasInsights?' '+insights.length:''}</button></div>
+      <div class="tab-pane ${defaultTab==='alerts'?'active':''}" id="ai-pane-alerts"><div class="ai-list">${smartAlerts.length?smartAlerts.map(a=>renderAICardItem(a,'Alert')).join(''):'<div class="ai-empty">No active alerts right now.</div>'}</div></div>
+      <div class="tab-pane ${defaultTab==='insights'?'active':''}" id="ai-pane-insights"><div class="ai-list">${insights.length?insights.map(i=>renderAICardItem(i,'Insight')).join(''):'<div class="ai-empty">No insights yet. Add more transactions to unlock patterns.</div>'}</div></div>
+    </div>`;
   }else{
     aiCard.innerHTML='';
   }
@@ -5964,10 +6059,11 @@ function render(){
   // Notifications
   const notificationItems=getNotificationItems(ac,catTotals,forecast);
   const dueSoonItems=getUnpaidRecurringDueSoon(5);
-  _lastNotifKey=[...notificationItems.map(n=>n.title+'|'+n.detail),...dueSoonItems.map(({item,status})=>item.id+'|'+status.label+'|'+item.amount)].join('§');
+  const salaryDueItems=getPendingSalaryDueSoon(2);
+  _lastNotifKey=[...notificationItems.map(n=>n.title+'|'+n.detail),...salaryDueItems.map(({split,status})=>'salary|'+split.day+'|'+status.label+'|'+split.amount),...dueSoonItems.map(({item,status})=>item.id+'|'+status.label+'|'+item.amount)].join('§');
   const notifList=document.getElementById('notif-list');
   if(notifList)notifList.innerHTML=notificationItems.length?notificationItems.map(n=>`<div class="notif-item ${n.type}"><div class="notif-item-icon">${n.icon}</div><div class="notif-item-body"><div class="notif-item-title">${esc(n.title)}</div><div class="notif-item-detail">${esc(n.detail)}</div></div></div>`).join(''):'<div class="notif-empty">All clear — no new alerts.</div>';
-  const notifCount=notificationItems.length+dueSoonItems.length;
+  const notifCount=notificationItems.length+salaryDueItems.length+dueSoonItems.length;
   const notifHc=document.getElementById('notif-head-count');if(notifHc)notifHc.textContent=notifCount?String(notifCount):'';
   const notifBadge=document.getElementById('notif-badge');
   const _hasNew=notifCount>0&&_lastNotifKey!==notifSeenKey;
@@ -6278,7 +6374,7 @@ function render(){
 
   // Recurring manager
   const rm=document.getElementById('recurring-manager');
-  if(rm){const monthKey=currentMonthKey();const recurringList=[...recurring].map(r=>({item:r,status:recurringStatus(r)})).sort((a,b)=>{if(a.status.state==='paid'&&b.status.state!=='paid')return 1;if(a.status.state!=='paid'&&b.status.state==='paid')return-1;return a.status.days-b.status.days});if(!recurringList.length){rm.innerHTML='<div class="empty"><div class="empty-icon">🔁</div><div class="empty-text">Track recurring bills and income here — never miss a due date</div><button class="btn btn-sm btn-primary empty-cta" onclick="openModal(\'modal-add-recurring\')">+ Add Recurring</button></div>';}else{const bills=recurringList.filter(({item})=>item.type==='bill');const xfers=recurringList.filter(({item})=>item.type==='transfer');const incomes=recurringList.filter(({item})=>item.type==='income');const renderGroup=(list,title)=>list.length?`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:${title==='Bills'?'0':'14px'} 0 8px">${title} <span style="font-weight:400">(${list.length})</span></div>${list.map(({item,status})=>{const catObj=ac.find(c=>c.name===item.category);const icon=catObj?catObj.icon:(item.type==='transfer'?'↔':item.type==='bill'?'🧾':'💵');const statusBg=status.state==='paid'?'var(--green-soft)':status.state==='due'?'var(--red-soft)':status.days<=3?'var(--amber-soft)':'var(--surface2)';const statusFg=status.state==='paid'?'var(--green)':status.state==='due'?'var(--red)':status.days<=3?'var(--amber)':'var(--text3)';const subtitle=item.type==='transfer'?`${esc(getAccountInfo(item.from).name)} → ${esc(getAccountInfo(item.to).name)} · ${fmt(item.amount)} · day ${item.day}`:item.type==='bill'?`${item.category||'Bill'} · ${fmt(item.amount)} · day ${item.day}`:`Income · ${fmt(item.amount)} · day ${item.day}`;return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><div class="tx-icon" style="width:36px;height:36px;flex-shrink:0">${icon}</div><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">${esc(item.name)}</div><div style="font-size:11px;color:var(--text3);margin-top:1px">${subtitle}</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="font-size:10px;font-weight:700;color:${statusFg};background:${statusBg};padding:3px 7px;border-radius:999px;white-space:nowrap">${status.label}</span>${status.state!=='paid'?`<button class="btn btn-sm btn-primary" onclick="markRecurringPaid(${item.id})">${item.type==='transfer'?'Run':'Pay'}</button>`:`<button class="btn btn-sm btn-ghost" onclick="recurring.find(r=>r.id===${item.id}).lastPaid='';saveData();render()">Reset</button>`}<button class="btn-icon" onclick="deleteRecurring(${item.id})" style="border:none;color:var(--red)">✕</button></div></div>`}).join('')}`:'';rm.innerHTML=renderGroup(bills,'Bills')+renderGroup(xfers,'Transfers')+renderGroup(incomes,'Income');}}
+  if(rm){const monthKey=currentMonthKey();const recurringList=[...recurring].map(r=>({item:r,status:recurringStatus(r),due:recurringDueDate(r,monthKey)})).sort((a,b)=>{if(a.status.state==='paid'&&b.status.state!=='paid')return 1;if(a.status.state!=='paid'&&b.status.state==='paid')return-1;return a.due-b.due});if(!recurringList.length){rm.innerHTML='<div class="empty"><div class="empty-icon">🔁</div><div class="empty-text">Track recurring bills and income here — never miss a due date</div><button class="btn btn-sm btn-primary empty-cta" onclick="openModal(\'modal-add-recurring\')">+ Add Recurring</button></div>';}else{const openItems=recurringList.filter(({status})=>status.state!=='paid');const paidItems=recurringList.filter(({status})=>status.state==='paid');const dueSoon=openItems.filter(({status})=>status.days<=3).length;const billTotal=openItems.filter(({item})=>item.type==='bill').reduce((s,{item})=>s+Number(item.amount||0),0);const incomeTotal=openItems.filter(({item})=>item.type==='income').reduce((s,{item})=>s+Number(item.amount||0),0);const transferTotal=openItems.filter(({item})=>item.type==='transfer').reduce((s,{item})=>s+Number(item.amount||0),0);const summaryHtml=`<div class="rec-summary-strip"><div><strong>${openItems.length}</strong><span>open</span></div><div><strong>${dueSoon}</strong><span>due soon</span></div><div><strong>${fmtShort(billTotal)}</strong><span>bills left</span></div><div><strong>${fmtShort(incomeTotal)}</strong><span>income left</span></div></div>${transferTotal>0?`<div class="rec-transfer-note">Scheduled transfers left this month: <strong>${fmtShort(transferTotal)}</strong></div>`:''}`;const renderGroup=(list,title)=>list.length?`<div class="rec-group"><div class="rec-group-head"><span>${title}</span><strong>${list.length}</strong></div>${list.map(({item,status,due})=>{const catObj=ac.find(c=>c.name===item.category);const icon=catObj?catObj.icon:(item.type==='transfer'?'↔':item.type==='bill'?'🧾':'💵');const dueLabel=due.toLocaleDateString('en-PH',{month:'short',day:'numeric'});const typeLabel=item.type==='transfer'?'Transfer':item.type==='bill'?'Bill':'Income';const amountClass=item.type==='income'?'income':item.type==='bill'?'bill':'transfer';const statusClass=status.state==='paid'?'paid':status.state==='overdue'||status.state==='missed'?'danger':status.state==='due'||status.days<=3?'warn':'soon';const meta=item.type==='transfer'?`${esc(getAccountInfo(item.from).name)} → ${esc(getAccountInfo(item.to).name)}`:item.type==='bill'?esc(item.category||'Bill'):'Expected income';const actionLabel=item.type==='transfer'?'Run':item.type==='income'?'Receive':'Pay';const action=status.state!=='paid'?`<button class="btn btn-sm btn-primary rec-card-action" onclick="markRecurringPaid(${item.id})">${actionLabel}</button>`:`<button class="btn btn-sm btn-ghost rec-card-action" onclick="recurring.find(r=>r.id===${item.id}).lastPaid='';saveData();render()">Reset</button>`;return`<div class="rec-card rec-card-${item.type} ${status.state==='paid'?'is-paid':''}"><div class="rec-card-icon">${icon}</div><div class="rec-card-main"><div class="rec-card-top"><div class="rec-card-title">${esc(item.name)}</div><div class="rec-card-amount ${amountClass}">${item.type==='income'?'+':item.type==='bill'?'−':''}${fmt(item.amount)}</div></div><div class="rec-card-meta"><span>${typeLabel}</span><span>${meta}</span><span>Due ${dueLabel}</span></div><div class="rec-card-bottom"><span class="rec-status ${statusClass}">${esc(status.label)}</span>${action}<button class="btn-icon rec-delete" aria-label="Delete ${esc(item.name)}" onclick="deleteRecurring(${item.id})">✕</button></div></div></div>`}).join('')}</div>`:'';rm.innerHTML=`<div class="rec-manager">${summaryHtml}${renderGroup(openItems,'Needs Action')}${renderGroup(paidItems,'Marked This Month')}</div>`;}}
 
   // Alert settings
   const alertSettingsEl=document.getElementById('alert-settings');
